@@ -1,4 +1,4 @@
-oxen-pet is a Claude Code mod: a pixel pet above the prompt and a HUD below it. The repo is a marketplace with one plugin, `plugins/oxen-pet`. `README.md` holds the layout, the commands, and the release step. This file holds the rules a change must keep.
+oxen-pet is a hardened fork of pixel-pet (see `SECURITY-AUDIT.md`), a Claude Code mod: a pixel pet above the prompt and a HUD below it. The repo is a marketplace with one plugin, `plugins/oxen-pet`. `README.md` holds the layout, the commands, and the release step. This file holds the rules a change must keep.
 
 ## Terms
 
@@ -31,7 +31,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - A field added to the theme format goes in `readTheme`, in `skills/oxen-pet/FORMAT.md`, in `assets/alien.json`, and in a test. A theme kept by an older version must still read.
 - Every color must read on a dark terminal and on a light one. Pick mid tones; avoid near-white and near-black text.
 - Pass a string `key` to elements. A number fails the type check.
-- `tools/demo/record.mjs` lays out the band and the HUD as `register.tsx` does, with copies of its layout constants. A layout change in `register.tsx` goes in both.
+- `preview_theme` writes only through `previewPathError` in `previewPath.ts`. Do not add another `$.fs.write`; a new write goes through a guard with its own test, and in `SECURITY-AUDIT.md`.
 - `register.tsx` is the adapter between Claude Code's events and the modules. Logic goes in a module with its own test, not in a hook.
 
 ## Updates must not break
@@ -46,4 +46,5 @@ A user who updates keeps three things the old version saved. Each must still loa
 
 - All art is original. Do not add sprites, images, or fonts copied from elsewhere.
 - The mod decorates around the chat: the band and the HUD. It does not restyle what Claude Code draws itself, such as tool rows, the spinner, or dialogs.
-- The mod makes no network requests, starts no processes, and reads no environment variables. README's Privacy and security section promises this.
+- The mod makes no network requests, starts no processes, and reads no environment variables. `SECURITY-AUDIT.md` lists the checks; run them before a push.
+- Upstream changes come in only by `git fetch upstream`, a full read of the diff, and a cherry-pick. Never install upstream's marketplace.

@@ -1,0 +1,79 @@
+# Security audit
+
+oxen-pet is a fork of [pixel-pet](https://github.com/Namenomeaning/pixel-pet) (MIT). It exists so
+that every line that runs inside Claude Code comes from this repo, read before it ships, instead
+of from a third-party marketplace that updates itself.
+
+## Audited upstream
+
+| | |
+| --- | --- |
+| Upstream | `https://github.com/Namenomeaning/pixel-pet` (remote `upstream`, push disabled) |
+| Commit | `02eb10af1788ee0514ed72ee3bf1cb7ad46b0764` (2026-10-03) |
+| Audited | 2026-10-05 |
+| Result | No network, process, environment, or dynamic-code access. One unrestricted file write, now restricted (below). |
+
+## What the mod can do
+
+From `claude plugin validate plugins/oxen-pet --strict`:
+
+```
+calls: $.agent.list, $.clock.every, $.clock.now, $.fs.read, $.fs.write, $.session.usage,
+       $.state.get, $.state.set, $.store.delete, $.store.get, $.store.set, $.tool.register,
+       $.ui.invalidate, $.ui.resolve, $.ui.status, $.ui.toast
+```
+
+| Call | Used for |
+| --- | --- |
+| `$.fs.read` | `assets/slime.json` under the plugin's own root |
+| `$.fs.write` | `preview_theme` only, to an absolute path whose file name is `oxen-pet-preview*.html` with no `..` (`hooks/previewPath.ts`) |
+| `$.session.usage` | context and rate-limit numbers for the HUD |
+| `$.agent.list` | count of running subagents, for the minis |
+| `$.store.*` | the theme `set_theme` keeps |
+| `$.state.*` | the pet's animation state |
+| `$.tool.register` | `get_theme`, `preview_theme`, `set_theme` |
+
+`tool.call` sees every tool's input. It keeps only a short target (file name, pattern, first 24
+characters of a Bash command, host, query) for the status line, and only when the **Name files and
+commands** setting is on. It is off by default in this fork.
+
+## Checks
+
+Run from the repo root. Each must print nothing beyond what is listed.
+
+```bash
+# Network, processes, environment, dynamic code, in shipped code
+grep -rnE "fetch\(|XMLHttpRequest|WebSocket|https?://|child_process|spawn|exec\(|process\.|require\(|import\(|eval\(|new Function" \
+  plugins/oxen-pet --include='*.ts' --include='*.tsx' | grep -v '\.test\.ts'
+# expected: pixels.ts — the SVG namespace string "http://www.w3.org/2000/svg" only
+
+# Imports: only claude-code and the mod's own modules
+grep -rhoE "from '[^']+'" plugins/oxen-pet/hooks --include='*.ts' --include='*.tsx' | sort -u
+
+# The preview page loads nothing from outside (inline <script> only)
+grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
+```
+
+## Changes from upstream
+
+1. Renamed to `oxen-pet` (plugin, marketplace, tools `mcp__oxen-pet__*`, state key, skill).
+2. `preview_theme` writes only `oxen-pet-preview*.html` at an absolute path with no `..`. Upstream
+   wrote to any path Claude passed, so a prompt-injected call could overwrite any file the user can
+   write.
+3. **Name files and commands** (`targets`) defaults to off.
+4. Removed `tools/demo/` (it spawned Chrome and ffmpeg) and `docs/images/`.
+
+## Taking an upstream change
+
+Never install upstream's marketplace. To bring in a change:
+
+```bash
+git fetch upstream
+git log --oneline main..upstream/main
+git diff main...upstream/main -- plugins/pixel-pet   # read every line
+git cherry-pick <sha>                                # resolve the pixel-pet → oxen-pet rename
+```
+
+Then re-run the checks above, `claude plugin validate plugins/oxen-pet --strict` (compare its
+`calls:` line with the table), and `claude plugin test plugins/oxen-pet`. Update the audited commit
+in this file, bump `version` in `plugins/oxen-pet/.claude-plugin/plugin.json`, and push.
