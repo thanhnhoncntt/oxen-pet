@@ -5,7 +5,7 @@ import type { Body, BodyFrame, Look } from './pixels'
 import { EVERY, SCENE_SIZE } from './scene'
 import type { Scene } from './scene'
 
-/** A theme as its file spells it: the pet's sprite and everything else it changes. `skills/pixel-pet/FORMAT.md` documents each field for the people who write one. */
+/** A theme as its file spells it: the pet's sprite and everything else it changes. `skills/oxen-pet/FORMAT.md` documents each field for the people who write one. */
 export type Theme = {
   name: string
   scale: number

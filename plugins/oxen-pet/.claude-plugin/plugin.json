@@ -1,12 +1,12 @@
 {
-  "name": "pixel-pet",
-  "version": "0.2.0",
-  "description": "A pixel pet above the prompt that acts out each tool call, plus an HP/MP/ST HUD below it",
+  "name": "oxen-pet",
+  "version": "1.0.0",
+  "description": "A pixel pet above the prompt that acts out each tool call, plus an HP/MP/ST HUD below it. Hardened fork of pixel-pet.",
   "author": {
-    "name": "halluqinate"
+    "name": "NhonNguyen"
   },
-  "homepage": "https://github.com/Namenomeaning/pixel-pet",
-  "repository": "https://github.com/Namenomeaning/pixel-pet",
+  "homepage": "https://github.com/thanhnhoncntt/oxen-pet",
+  "repository": "https://github.com/thanhnhoncntt/oxen-pet",
   "license": "MIT",
   "keywords": [
     "mod",

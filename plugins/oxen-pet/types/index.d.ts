@@ -29,6 +29,6 @@ export type Leap = { since: number; from: number; to: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    'pixel-pet': { anim: Anim }
+    'oxen-pet': { anim: Anim }
   }
 }

@@ -40,12 +40,12 @@ test('the band draws the pet, and the hint line draws the HUD in its window', as
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND })
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...BAND })
   const drawn = JSON.stringify(await band.drawn())
   expect(drawn).toContain('"key":"pet"')
   await band.unmount()
 
-  const hint = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...HINT })
+  const hint = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...HINT })
   const tree = JSON.stringify(await hint.drawn())
   expect(tree).toContain('▄▄▄')
   expect(tree).toContain('▀▀▀')
@@ -57,9 +57,9 @@ test('a theme with a scene draws the band across its width, with the ground in a
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   const scene = { ground: ['gg'], obstacles: [['gg', 'gg']] }
-  await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: { ...BLOCK, palette: { ...BLOCK.palette, g: '#888888' }, scene } })
+  await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: { ...BLOCK, palette: { ...BLOCK.palette, g: '#888888' }, scene } })
 
-  const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND })
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...BAND })
   const drawn = JSON.stringify(await band.drawn())
   expect(drawn).toContain('"key":"pet"')
   expect(drawn).toContain('"key":"ground"')
@@ -71,20 +71,20 @@ test('set_theme draws and keeps a theme, notes what it repaired, and refuses one
   const store = stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const set = await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: CAT })
+  const set = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: CAT })
   expect(set.deny).toBeUndefined()
   expect(String(set.result)).toContain('The Mochi theme is on screen now')
   expect(store.get('theme')).toEqual(CAT)
 
-  const refused = await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: { name: 'nothing' } })
+  const refused = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: { name: 'nothing' } })
   expect(refused.deny ?? refused.text).toContain('`sprite` is a list of text rows')
   expect(store.get('theme')).toEqual(CAT)
 
-  const noted = await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: { ...CAT, palette: { k: '#e8a33d' } } })
+  const noted = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: { ...CAT, palette: { k: '#e8a33d' } } })
   expect(String(noted.result)).toContain('"w" has no palette color, so it is drawn clear.')
   expect(String(noted.result)).toContain('stand, run, jump, think, cheer, and 18 faces')
 
-  const reset = await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: null })
+  const reset = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: null })
   expect(String(reset.result)).toContain('The slime is back')
   expect(store.get('theme')).toBeUndefined()
 })
@@ -93,11 +93,11 @@ test('set_theme with no theme sets the last preview, and refuses when there is n
   const store = stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const none = await $.tool.call({ tool: 'mcp__pixel-pet__set_theme' })
+  const none = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme' })
   expect(none.deny ?? none.text).toContain('no preview_theme call')
 
-  await $.tool.call({ tool: 'mcp__pixel-pet__preview_theme', theme: CAT, path: '/tmp/cat.html' })
-  const set = await $.tool.call({ tool: 'mcp__pixel-pet__set_theme' })
+  await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/cat.html' })
+  const set = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme' })
   expect(String(set.result)).toContain('The Mochi theme is on screen now')
   expect(store.get('theme')).toEqual(CAT)
 })
@@ -106,12 +106,12 @@ test('get_theme returns the kept theme, or the slime\'s when none is kept', asyn
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const slime = await $.tool.call({ tool: 'mcp__pixel-pet__get_theme' })
+  const slime = await $.tool.call({ tool: 'mcp__oxen-pet__get_theme' })
   expect(String(slime.result)).toContain('No theme is kept')
   expect(String(slime.result)).toContain('"name":"block"')
 
-  await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: CAT })
-  const kept = await $.tool.call({ tool: 'mcp__pixel-pet__get_theme' })
+  await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: CAT })
+  const kept = await $.tool.call({ tool: 'mcp__oxen-pet__get_theme' })
   expect(String(kept.result)).toContain('"name": "Mochi"')
 })
 
@@ -119,13 +119,13 @@ test('the settings hide the HUD and the status line', { options: { hud: false, s
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND })
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...BAND })
   const drawn = JSON.stringify(await band.drawn())
   expect(drawn).toContain('"key":"pet"')
   expect(drawn).not.toContain('›')
   await band.unmount()
 
-  const hint = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...HINT })
+  const hint = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...HINT })
   expect(JSON.stringify(await hint.drawn())).not.toContain('♥ HP')
   await hint.unmount()
 })
@@ -134,7 +134,7 @@ test('preview_theme writes the preview and leaves the pet on screen alone', asyn
   const store = stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const wrote = await $.tool.call({ tool: 'mcp__pixel-pet__preview_theme', theme: CAT, path: '/tmp/mochi.html' })
+  const wrote = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/mochi.html' })
   expect(String(wrote.result)).toContain('Wrote the preview of Mochi to /tmp/mochi.html')
   const page = String(store.get('file:/tmp/mochi.html'))
   for (const part of ['<title>Mochi: preview</title>', 'Motions', 'Faces', 'Frames', 'A subagent starts']) {
@@ -142,6 +142,6 @@ test('preview_theme writes the preview and leaves the pet on screen alone', asyn
   }
   expect(store.get('theme')).toBeUndefined()
 
-  const nowhere = await $.tool.call({ tool: 'mcp__pixel-pet__preview_theme', theme: CAT })
+  const nowhere = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT })
   expect(nowhere.deny ?? nowhere.text).toContain('`path` is the HTML file to write')
 })

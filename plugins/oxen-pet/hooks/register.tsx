@@ -25,13 +25,13 @@ const AGENTS_EVERY_BEATS = 5
 const SLOW_BEATS: Partial<Record<Mode, number>> = { idle: 2, sleep: 4 } // ticks per redraw while nothing moves fast
 
 const THEME_KEY = 'theme' // in $.store: the theme set_theme last took
-const OWN_TOOLS = 'mcp__pixel-pet__'
+const OWN_TOOLS = 'mcp__oxen-pet__'
 // Literals, so `claude plugin validate` can read the hooks' matchers.
-const SET_THEME = 'mcp__pixel-pet__set_theme'
-const PREVIEW_THEME = 'mcp__pixel-pet__preview_theme'
-const GET_THEME = 'mcp__pixel-pet__get_theme'
+const SET_THEME = 'mcp__oxen-pet__set_theme'
+const PREVIEW_THEME = 'mcp__oxen-pet__preview_theme'
+const GET_THEME = 'mcp__oxen-pet__get_theme'
 
-const anim = atom({ plugin: 'pixel-pet', key: 'anim' } as const, {
+const anim = atom({ plugin: 'oxen-pet', key: 'anim' } as const, {
   mode: 'idle',
   since: 0,
   x: 0,
@@ -85,7 +85,7 @@ async function keptBody($: EngineInterface) {
     if (!read.errors) {
       return animate(read.theme)
     }
-    $.ui.toast(`pixel-pet: your theme no longer reads (${read.errors[0]}). Showing the slime.`)
+    $.ui.toast(`oxen-pet: your theme no longer reads (${read.errors[0]}). Showing the slime.`)
   }
 
   return slimeBody($)
@@ -130,7 +130,7 @@ export const register: Register = (on, options) => {
       await $.tool.register({
         name: 'preview_theme',
         description:
-          'Writes the preview of a pixel-pet theme to `path`: an HTML page with every motion, face, status line, and HUD look of its pet, and the pet running through its scene. It does not change what is on screen. `theme` is in the format the `pixel-pet:pixel-pet` skill describes. Returns the resting frame and notes on anything repaired.',
+          'Writes the preview of a oxen-pet theme to `path`: an HTML page with every motion, face, status line, and HUD look of its pet, and the pet running through its scene. It does not change what is on screen. `theme` is in the format the `oxen-pet:oxen-pet` skill describes. Returns the resting frame and notes on anything repaired.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -143,7 +143,7 @@ export const register: Register = (on, options) => {
       await $.tool.register({
         name: 'set_theme',
         description:
-          'Sets the pixel-pet theme: the pet, its props, minis, status lines, HUD look, and scene, at once, kept for later sessions. `theme` is in the format the `pixel-pet:pixel-pet` skill describes, or null for the default slime. Leave `theme` out to set the last theme preview_theme drew in this session. Returns the resting frame and notes on anything repaired.',
+          'Sets the oxen-pet theme: the pet, its props, minis, status lines, HUD look, and scene, at once, kept for later sessions. `theme` is in the format the `oxen-pet:oxen-pet` skill describes, or null for the default slime. Leave `theme` out to set the last theme preview_theme drew in this session. Returns the resting frame and notes on anything repaired.',
         inputSchema: {
           type: 'object',
           properties: { theme: { type: ['object', 'null'], description: 'The theme as a JSON object, null for the default slime, or left out for the last preview.' } },
@@ -152,7 +152,7 @@ export const register: Register = (on, options) => {
       await $.tool.register({
         name: 'get_theme',
         description:
-          'Returns the pixel-pet theme on screen: the one set_theme kept, or the default slime\'s. Start a change from it, so set_theme keeps everything the change leaves alone.',
+          'Returns the oxen-pet theme on screen: the one set_theme kept, or the default slime\'s. Start a change from it, so set_theme keeps everything the change leaves alone.',
         inputSchema: { type: 'object', properties: {} },
       })
     } catch {
@@ -396,7 +396,7 @@ export const register: Register = (on, options) => {
       return next(e)
     } catch (err) {
       showsError = true
-      $.ui.status(`pixel-pet: ${String(err)}`)
+      $.ui.status(`oxen-pet: ${String(err)}`)
 
       return next(e)
     }

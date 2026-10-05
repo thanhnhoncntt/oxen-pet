@@ -1,13 +1,13 @@
 ---
-name: pixel-pet
-description: Customize the pixel-pet theme. Draw, recolor, or edit the mascot, change its props (the thinking question mark, the web globe, the book, the terminal), minis, status line text and colors, the HUD's look, and the scene (a background, ground, and obstacles the pet jumps). Also sets speed, sleep, HUD on or off, status line on or off, naming files, and minis, loads or shares a theme file, and brings the slime back.
+name: oxen-pet
+description: Customize the oxen-pet theme. Draw, recolor, or edit the mascot, change its props (the thinking question mark, the web globe, the book, the terminal), minis, status line text and colors, the HUD's look, and the scene (a background, ground, and obstacles the pet jumps). Also sets speed, sleep, HUD on or off, status line on or off, naming files, and minis, loads or shares a theme file, and brings the slime back.
 ---
 
 # Pixel pet
 
 One entry point to change anything the mod draws: the pet, its props, its minis, the status line, the HUD, the scene, and the settings. A request can touch any subset. All of it but the settings lives in one theme: a JSON object with the pet's sprite and everything else it changes. Read [FORMAT.md](FORMAT.md) before you change a theme.
 
-Three tools do the work. Their full names end in `__get_theme`, `__preview_theme`, and `__set_theme`; from the marketplace they are `mcp__pixel-pet__get_theme`, `mcp__pixel-pet__preview_theme`, and `mcp__pixel-pet__set_theme`. When they are not listed, follow [Troubleshooting](#troubleshooting) and stop.
+Three tools do the work. Their full names end in `__get_theme`, `__preview_theme`, and `__set_theme`; from the marketplace they are `mcp__oxen-pet__get_theme`, `mcp__oxen-pet__preview_theme`, and `mcp__oxen-pet__set_theme`. When they are not listed, follow [Troubleshooting](#troubleshooting) and stop.
 
 - `get_theme` takes no input and returns the theme on screen: the one `set_theme` kept, or the slime's.
 - `preview_theme` takes `theme` and `path`, and writes an HTML page of the theme. What is on screen stays as it is.
@@ -131,13 +131,13 @@ For an approved preview, call `set_theme` with `theme` left out, so it sets the 
 
 ## Settings
 
-Settings are the user's choices, kept apart from the theme. They need no preview. In a session, the user runs `/plugin configure pixel-pet@pixel-pet`. From a shell, pipe a JSON object of strings:
+Settings are the user's choices, kept apart from the theme. They need no preview. In a session, the user runs `/plugin configure oxen-pet@oxen-pet`. From a shell, pipe a JSON object of strings:
 
 ```bash
-echo '{"speed": "fast", "hud": "false"}' | claude plugin configure pixel-pet@pixel-pet --values-stdin
+echo '{"speed": "fast", "hud": "false"}' | claude plugin configure oxen-pet@oxen-pet --values-stdin
 ```
 
-Options left out keep their values. The change applies after Claude Code restarts, so tell the user to start a new session. `claude plugin configure pixel-pet@pixel-pet --json` lists each setting's type, default, and limits.
+Options left out keep their values. The change applies after Claude Code restarts, so tell the user to start a new session. `claude plugin configure oxen-pet@oxen-pet --json` lists each setting's type, default, and limits.
 
 | Key | Values | What it sets |
 | --- | --- | --- |
@@ -152,10 +152,10 @@ Options left out keep their values. The change applies after Claude Code restart
 
 | What happens | Why, and what to tell the user |
 | --- | --- |
-| The tools are not listed (`get_theme`, `preview_theme`, `set_theme`) | pixel-pet is not installed, or the session started before it loaded. Install it with `claude plugin install pixel-pet@pixel-pet`, then tell the user to run `/reload-plugins` or start a new session. After `/reload-plugins`, the tools appear from the next prompt on. Continue once they are listed. Preview and set through the tools only: the repo's `tools/preview/build.mjs` and a hand-written store both bypass the mod. |
+| The tools are not listed (`get_theme`, `preview_theme`, `set_theme`) | oxen-pet is not installed, or the session started before it loaded. Install it with `claude plugin install oxen-pet@oxen-pet`, then tell the user to run `/reload-plugins` or start a new session. After `/reload-plugins`, the tools appear from the next prompt on. Continue once they are listed. Preview and set through the tools only: the repo's `tools/preview/build.mjs` and a hand-written store both bypass the mod. |
 | The tools are still missing after an install | Claude Code is older than v2.1.287, which mods need. Check with `claude --version` and update Claude Code. |
 | After install: "N userConfig options not yet set" | Every setting has a default. Nothing to do. |
-| An update changed nothing | An installed copy updates only when the plugin's version changes. Run `claude plugin marketplace update pixel-pet`, then `claude plugin update pixel-pet@pixel-pet`, and start a new session. |
+| An update changed nothing | An installed copy updates only when the plugin's version changes. Run `claude plugin marketplace update oxen-pet`, then `claude plugin update oxen-pet@oxen-pet`, and start a new session. |
 | The pet does not show | The VS Code chat panel, `claude -p`, and cloud sessions do not draw it. It shows in a terminal and in the Desktop app's Code tab. The HUD shows only in a terminal. |
 | A setting changed nothing | Settings apply after a restart. Start a new session. |
 | A toast says "your theme no longer reads", and the slime is back | The kept theme has no sprite left. Load the user's theme file again, or draw it again. |

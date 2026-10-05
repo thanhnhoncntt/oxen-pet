@@ -1,14 +1,14 @@
 {
-  "name": "pixel-pet",
-  "description": "A pixel pet that lives above the Claude Code prompt",
+  "name": "oxen-pet",
+  "description": "oxen-pet: a hardened fork of pixel-pet, a pixel pet above the Claude Code prompt",
   "owner": {
-    "name": "halluqinate",
-    "url": "https://github.com/Namenomeaning"
+    "name": "NhonNguyen",
+    "url": "https://github.com/thanhnhoncntt"
   },
   "plugins": [
     {
-      "name": "pixel-pet",
-      "source": "./plugins/pixel-pet"
+      "name": "oxen-pet",
+      "source": "./plugins/oxen-pet"
     }
   ]
 }

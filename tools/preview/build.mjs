@@ -6,7 +6,7 @@ import { registerHooks } from 'node:module'
 
 // The hooks import each other without an extension, as the mod's bundler allows.
 registerHooks({ resolve: (spec, ctx, next) => next(/^\.\.?\//.test(spec) && !/\.[a-z]+$/.test(spec) ? `${spec}.ts` : spec, ctx) })
-const plugin = new URL('../../plugins/pixel-pet/', import.meta.url)
+const plugin = new URL('../../plugins/oxen-pet/', import.meta.url)
 const { animate, readTheme, restingFrame } = await import(new URL('hooks/theme.ts', plugin).href)
 const { previewPage } = await import(new URL('hooks/preview.ts', plugin).href)
 
