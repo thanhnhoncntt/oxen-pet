@@ -3,7 +3,7 @@ import type { AgentInfo } from 'claude-code'
 
 import { minisOnScreen, reconcile } from './minis'
 
-const agent = (id: string, status: string): AgentInfo => ({ id, description: id, type: 'general-purpose', status })
+const agent = (id: string, status: AgentInfo['status']): AgentInfo => ({ id, description: id, type: 'general-purpose', status })
 
 test('a mini joins for each running agent and stays while it runs', () => {
   let minis = reconcile([], [agent('a', 'running'), agent('b', 'completed')], 0)

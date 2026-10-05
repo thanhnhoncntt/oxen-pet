@@ -15,7 +15,7 @@ export function previewPathError(path: unknown): string | undefined {
   if (parts.includes('..')) {
     return '`path` must not contain `..`.'
   }
-  const name = parts[parts.length - 1]
+  const name = parts[parts.length - 1] ?? ''
   if (!name.startsWith(PREVIEW_PREFIX) || !name.endsWith('.html')) {
     return `\`path\` must name a file that starts with ${PREVIEW_PREFIX} and ends with .html, such as /tmp/${PREVIEW_PREFIX}-cat.html.`
   }
