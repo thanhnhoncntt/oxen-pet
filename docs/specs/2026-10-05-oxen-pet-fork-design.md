@@ -30,7 +30,8 @@ fork. LICENSE keeps the original MIT copyright line and adds the fork's.
 
 1. **Preview path guard.** `preview_theme` writes only when `path` is absolute, has no `..`
    segment, and its file name starts with `oxen-pet-preview` and ends with `.html`. Otherwise it
-   denies with a message naming the rule. The check is a pure function `previewPathError(path)`
+   denies with a message naming the rule. It also refuses a symbolic link at the path and a missing
+   folder (`previewTargetError`, from `$.fs.stat`). The checks are pure functions
    in its own module with tests. Effect: a prompt-injected Claude cannot use the tool to
    overwrite dotfiles or source code.
 2. **Remove `tools/demo/`** (spawns Chrome and ffmpeg) and `docs/images/` (README gifs).

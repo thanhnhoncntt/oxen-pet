@@ -9,7 +9,7 @@ import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
 import { animate, readTheme, restingFrame } from './theme'
 import { previewPage } from './preview'
-import { previewPathError } from './previewPath'
+import { previewPathError, previewTargetError } from './previewPath'
 import { readSettings } from './settings'
 import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, trailWidth } from './pixels'
 import type { Body } from './pixels'
@@ -58,6 +58,26 @@ async function minisOr($: EngineInterface, now: number, last: Mini[]) {
   } catch {
     return last
   }
+}
+
+/** The stat of `path` with where it lands, or undefined when nothing is there. */
+async function statOf($: EngineInterface, path: string) {
+  try {
+    return await $.fs.stat(path, { resolve: true })
+  } catch {
+    return undefined
+  }
+}
+
+/** Why preview_theme must not write to `path`: its spelling first, then where it leads on disk. */
+async function previewWriteError($: EngineInterface, path: unknown) {
+  const spelled = previewPathError(path)
+  if (spelled !== undefined || typeof path !== 'string') {
+    return spelled
+  }
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+
+  return previewTargetError(await statOf($, path), await statOf($, path.slice(0, cut + 1)))
 }
 
 /** What preview_theme and set_theme tell Claude about a theme's pet: the clips and faces made, the resting frame, and readTheme's notes. */
@@ -136,7 +156,7 @@ export const register: Register = (on, options) => {
           type: 'object',
           properties: {
             theme: { type: 'object', description: 'The theme as a JSON object, in the format FORMAT.md documents.' },
-            path: { type: 'string', description: 'Absolute path of the HTML file to write, such as one in the temp folder.' },
+            path: { type: 'string', description: 'Absolute path of the HTML file to write, in an existing folder, named oxen-pet-preview….html, such as /tmp/oxen-pet-preview-cat.html. No `..`, no symbolic link; any other path is refused.' },
           },
           required: ['theme', 'path'],
         },
@@ -217,7 +237,7 @@ export const register: Register = (on, options) => {
     if (read.errors) {
       return { deny: `No preview was written: ${read.errors.join(' ')}` }
     }
-    const badPath = previewPathError(path)
+    const badPath = await previewWriteError($, path)
     if (badPath !== undefined || typeof path !== 'string') {
       return { deny: `No preview was written: ${badPath}` }
     }

@@ -18,7 +18,7 @@ of from a third-party marketplace that updates itself.
 From `claude plugin validate plugins/oxen-pet --strict`:
 
 ```
-calls: $.agent.list, $.clock.every, $.clock.now, $.fs.read, $.fs.write, $.session.usage,
+calls: $.agent.list, $.clock.every, $.clock.now, $.fs.read, $.fs.stat, $.fs.write, $.session.usage,
        $.state.get, $.state.set, $.store.delete, $.store.get, $.store.set, $.tool.register,
        $.ui.invalidate, $.ui.resolve, $.ui.status, $.ui.toast
 ```
@@ -26,7 +26,8 @@ calls: $.agent.list, $.clock.every, $.clock.now, $.fs.read, $.fs.write, $.sessio
 | Call | Used for |
 | --- | --- |
 | `$.fs.read` | `assets/slime.json` under the plugin's own root |
-| `$.fs.write` | `preview_theme` only, to an absolute path whose file name is `oxen-pet-preview*.html` with no `..` (`hooks/previewPath.ts`) |
+| `$.fs.stat` | `preview_theme` only: where the path leads, before writing |
+| `$.fs.write` | `preview_theme` only, to an absolute path whose file name is `oxen-pet-preview*.html` with no `..`, in a folder that already exists, and that is not a symbolic link and lands on an `oxen-pet-preview*.html` file (`hooks/previewPath.ts`) |
 | `$.session.usage` | context and rate-limit numbers for the HUD |
 | `$.agent.list` | count of running subagents, for the minis |
 | `$.store.*` | the theme `set_theme` keeps |
@@ -57,9 +58,14 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
 ## Changes from upstream
 
 1. Renamed to `oxen-pet` (plugin, marketplace, tools `mcp__oxen-pet__*`, state key, skill).
-2. `preview_theme` writes only `oxen-pet-preview*.html` at an absolute path with no `..`. Upstream
-   wrote to any path Claude passed, so a prompt-injected call could overwrite any file the user can
-   write.
+2. `preview_theme` writes only `oxen-pet-preview*.html` at an absolute path with no `..`, into a
+   folder that already exists, and refuses a symbolic link at that path (checked with
+   `$.fs.stat(path, { resolve: true })`). Upstream wrote to any path Claude passed, so a
+   prompt-injected call could overwrite any file the user can write, for example through a symlink
+   committed to a cloned repo.
+
+   Known limits: a hard link at an allowed name, and a link swapped in between the check and the
+   write, both need someone who can already write to that folder.
 3. **Name files and commands** (`targets`) defaults to off.
 4. Removed `tools/demo/` (it spawned Chrome and ffmpeg) and `docs/images/`.
 

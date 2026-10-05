@@ -74,7 +74,7 @@ In a session, run `/plugin configure oxen-pet@oxen-pet`.
 From a shell:
 
 ```bash
-echo '{"speed": "fast", "targets": true}' | claude plugin configure oxen-pet@oxen-pet --values-stdin
+echo '{"speed": "fast", "targets": "true"}' | claude plugin configure oxen-pet@oxen-pet --values-stdin
 ```
 
 ## Update

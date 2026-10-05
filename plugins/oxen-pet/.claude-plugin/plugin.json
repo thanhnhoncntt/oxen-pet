@@ -1,6 +1,6 @@
 {
   "name": "oxen-pet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A pixel pet above the prompt that acts out each tool call, plus an HP/MP/ST HUD below it. Hardened fork of pixel-pet.",
   "author": {
     "name": "NhonNguyen"

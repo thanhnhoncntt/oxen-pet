@@ -32,6 +32,21 @@ function stubEngine(on: On) {
     store.set(`file:${e.path}`, e.text)
     return { value: undefined }
   })
+  // /tmp is the one folder; `link:<path>` in the store plants a symbolic link there, to the path it holds.
+  on('fs.stat', (_$, e) => {
+    const at = (kind: 'file' | 'dir', isLink: boolean, real: string) => ({ value: { kind, size: 0, mtimeMs: 0, isLink, realPath: e.resolve ? real : undefined } })
+    const link = store.get(`link:${e.path}`)
+    if (typeof link === 'string') {
+      return at('file', true, link)
+    }
+    if (store.has(`file:${e.path}`)) {
+      return at('file', false, e.path)
+    }
+    if (e.path === '/tmp' || e.path === '/tmp/') {
+      return at('dir', false, '/private/tmp')
+    }
+    return { deny: `ENOENT: ${e.path}` }
+  })
 
   return store
 }
@@ -155,4 +170,15 @@ test('preview_theme refuses a path outside oxen-pet-preview*.html and writes not
     expect(refused.deny ?? refused.text).toContain('No preview was written')
     expect(store.get(`file:${path}`)).toBeUndefined()
   }
+})
+
+test('preview_theme refuses a symbolic link planted at an allowed path, and writes nothing', async ($, on) => {
+  const store = stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  store.set('link:/tmp/oxen-pet-preview-evil.html', '/Users/me/.zshrc')
+
+  const refused = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/oxen-pet-preview-evil.html' })
+  expect(refused.deny ?? refused.text).toContain('symbolic link')
+  expect(store.get('file:/tmp/oxen-pet-preview-evil.html')).toBeUndefined()
+  expect(store.get('file:/Users/me/.zshrc')).toBeUndefined()
 })
