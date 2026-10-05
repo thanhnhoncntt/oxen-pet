@@ -9,7 +9,7 @@ here first. What was audited and what changed: [`SECURITY-AUDIT.md`](SECURITY-AU
 
 ## Install
 
-You need Claude Code v2.1.287 or later (`claude --version`) and read access to this repo.
+You need Claude Code v2.1.287 or later (`claude --version`).
 
 ```bash
 claude plugin marketplace add thanhnhoncntt/oxen-pet
