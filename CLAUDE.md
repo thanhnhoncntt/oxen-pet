@@ -34,6 +34,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - Pass a string `key` to elements. A number fails the type check.
 - `preview_theme` writes only through `previewPathError` in `previewPath.ts`. Do not add another `$.fs.write`; a new write goes through a guard with its own test, and in `SECURITY-AUDIT.md`.
 - `register.tsx` is the adapter between Claude Code's events and the modules. Logic goes in a module with its own test, not in a hook.
+- `tools/demo/record.mjs` lays out the band and the HUD as `register.tsx` does, with copies of its layout constants. A layout change in `register.tsx` goes in both; then run it and commit the new `docs/images/demo.gif` and `hud.png`.
 
 ## Updates must not break
 

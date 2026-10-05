@@ -1,6 +1,6 @@
 {
   "name": "oxen-pet",
-  "description": "oxen-pet: a hardened fork of pixel-pet, a pixel pet above the Claude Code prompt",
+  "description": "oxen-pet: a pixel pet and an RPG-style usage HUD for Claude Code (context, rate limits, prompt cache). A hardened, audited fork of pixel-pet.",
   "owner": {
     "name": "NhonNguyen",
     "url": "https://github.com/thanhnhoncntt"

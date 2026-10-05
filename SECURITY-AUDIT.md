@@ -67,7 +67,14 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
    Known limits: a hard link at an allowed name, and a link swapped in between the check and the
    write, both need someone who can already write to that folder.
 3. **Name files and commands** (`targets`) defaults to off.
-4. Removed `tools/demo/` (it spawned Chrome and ffmpeg) and `docs/images/`.
+4. Removed `tools/demo/` (it spawned Chrome and ffmpeg) and `docs/images/`. Both came back on
+   2026-10-05 for the README's demo GIF: `tools/demo/record.mjs` is a developer tool that a person runs
+   by hand. It lives outside `plugins/oxen-pet`, so no install ships it and Claude Code never loads it.
+   It starts a headless Chrome and ffmpeg, talks to Chrome's DevTools on `127.0.0.1` only, and writes
+   only `docs/images/demo.gif` and `hud.png` (or the path given) and a temp folder it deletes. The
+   checks above cover `plugins/oxen-pet` alone on purpose.
+5. 1.0.2 adds a `turn.complete` hook that only observes: it notes when the main thread's turn ended,
+   for the cache timer, and passes the turn through unchanged.
 
 ## Taking an upstream change
 

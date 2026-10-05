@@ -1,7 +1,7 @@
 {
   "name": "oxen-pet",
   "version": "1.0.2",
-  "description": "A pixel pet above the prompt that acts out each tool call, plus an HP/MP/ST HUD below it. Hardened fork of pixel-pet.",
+  "description": "A pixel pet above the Claude Code prompt that acts out each tool call, plus an HP/MP/ST HUD for context, rate limits, and prompt cache. Hardened fork of pixel-pet.",
   "author": {
     "name": "NhonNguyen"
   },
@@ -13,7 +13,11 @@
     "pet",
     "pixel-art",
     "statusline",
-    "hud"
+    "hud",
+    "rate-limit",
+    "usage",
+    "context-window",
+    "prompt-cache"
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
