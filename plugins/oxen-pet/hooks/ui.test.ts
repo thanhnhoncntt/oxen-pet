@@ -96,7 +96,7 @@ test('set_theme with no theme sets the last preview, and refuses when there is n
   const none = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme' })
   expect(none.deny ?? none.text).toContain('no preview_theme call')
 
-  await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/cat.html' })
+  await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/oxen-pet-preview-cat.html' })
   const set = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme' })
   expect(String(set.result)).toContain('The Mochi theme is on screen now')
   expect(store.get('theme')).toEqual(CAT)
@@ -134,9 +134,9 @@ test('preview_theme writes the preview and leaves the pet on screen alone', asyn
   const store = stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
-  const wrote = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/mochi.html' })
-  expect(String(wrote.result)).toContain('Wrote the preview of Mochi to /tmp/mochi.html')
-  const page = String(store.get('file:/tmp/mochi.html'))
+  const wrote = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path: '/tmp/oxen-pet-preview-mochi.html' })
+  expect(String(wrote.result)).toContain('Wrote the preview of Mochi to /tmp/oxen-pet-preview-mochi.html')
+  const page = String(store.get('file:/tmp/oxen-pet-preview-mochi.html'))
   for (const part of ['<title>Mochi: preview</title>', 'Motions', 'Faces', 'Frames', 'A subagent starts']) {
     expect(page).toContain(part)
   }
@@ -144,4 +144,15 @@ test('preview_theme writes the preview and leaves the pet on screen alone', asyn
 
   const nowhere = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT })
   expect(nowhere.deny ?? nowhere.text).toContain('`path` is the HTML file to write')
+})
+
+test('preview_theme refuses a path outside oxen-pet-preview*.html and writes nothing', async ($, on) => {
+  const store = stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  for (const path of ['/Users/me/.zshrc', '/tmp/a/../../Users/me/oxen-pet-preview.html', 'oxen-pet-preview.html']) {
+    const refused = await $.tool.call({ tool: 'mcp__oxen-pet__preview_theme', theme: CAT, path })
+    expect(refused.deny ?? refused.text).toContain('No preview was written')
+    expect(store.get(`file:${path}`)).toBeUndefined()
+  }
 })

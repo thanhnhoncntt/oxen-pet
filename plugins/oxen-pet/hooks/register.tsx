@@ -9,6 +9,7 @@ import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
 import { animate, readTheme, restingFrame } from './theme'
 import { previewPage } from './preview'
+import { previewPathError } from './previewPath'
 import { readSettings } from './settings'
 import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, trailWidth } from './pixels'
 import type { Body } from './pixels'
@@ -216,8 +217,9 @@ export const register: Register = (on, options) => {
     if (read.errors) {
       return { deny: `No preview was written: ${read.errors.join(' ')}` }
     }
-    if (typeof path !== 'string' || path === '') {
-      return { deny: 'No preview was written: `path` is the HTML file to write.' }
+    const badPath = previewPathError(path)
+    if (badPath !== undefined || typeof path !== 'string') {
+      return { deny: `No preview was written: ${badPath}` }
     }
     const preview = animate(read.theme)
     await $.fs.write(path, previewPage(preview, read.notes))

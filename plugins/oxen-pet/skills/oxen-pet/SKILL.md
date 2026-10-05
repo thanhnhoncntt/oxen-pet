@@ -10,7 +10,7 @@ One entry point to change anything the mod draws: the pet, its props, its minis,
 Three tools do the work. Their full names end in `__get_theme`, `__preview_theme`, and `__set_theme`; from the marketplace they are `mcp__oxen-pet__get_theme`, `mcp__oxen-pet__preview_theme`, and `mcp__oxen-pet__set_theme`. When they are not listed, follow [Troubleshooting](#troubleshooting) and stop.
 
 - `get_theme` takes no input and returns the theme on screen: the one `set_theme` kept, or the slime's.
-- `preview_theme` takes `theme` and `path`, and writes an HTML page of the theme. What is on screen stays as it is.
+- `preview_theme` takes `theme` and `path`, and writes an HTML page of the theme. What is on screen stays as it is. `path` must be absolute, have no `..`, and name a file that starts with `oxen-pet-preview` and ends with `.html`; any other path is refused.
 - `set_theme` takes `theme`, `null` for the slime, or no `theme` for the last theme `preview_theme` drew in this session. It replaces the whole theme on screen, at once, and keeps it for later sessions.
 
 Everything below is a default that makes a good pet. The user's idea wins: a pet with no eyes, a tall thin one, a wild palette. The tools draw nearly anything and return notes on what they repaired.
@@ -108,7 +108,7 @@ Example, a front-facing cat ([`assets/duck.json`](../../assets/duck.json) is a s
 
 Preview every theme you drew or changed: the user has not seen it yet. A ready-made theme the user named as is (a theme file, a repo's `assets/alien.json`, the slime back) is already chosen: go to [step 6](#6-put-it-on-screen) and pass it as `theme`. Skip the preview of your own changes only when the user asks.
 
-Call `preview_theme` with `theme` and an absolute `path` in the temp folder, such as `/tmp/cat.theme.html`.
+Call `preview_theme` with `theme` and an absolute `path` in the temp folder, such as `/tmp/oxen-pet-preview-cat.html`.
 
 - A theme with no sprite is refused. Add a sprite and call again.
 - Any other theme draws. The result gives the resting frame (`@` is a pupil, `*` a cheek) and notes.
