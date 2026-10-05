@@ -10,7 +10,7 @@ export type Settings = {
 
 const PACE: Record<string, number> = { slow: 0.6, normal: 1, fast: 1.6 }
 
-export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: true, minis: true }
+export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true }
 
 const flag = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
 

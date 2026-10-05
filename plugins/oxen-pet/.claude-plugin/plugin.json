@@ -51,8 +51,8 @@
     "targets": {
       "type": "boolean",
       "title": "Name files and commands",
-      "description": "The status line names the file, pattern, command, host, or search query a tool works on. Turn it off to share your screen.",
-      "default": true
+      "description": "The status line names the file, pattern, command, host, or search query a tool works on. Off by default so a shared screen shows no file names or commands.",
+      "default": false
     },
     "minis": {
       "type": "boolean",

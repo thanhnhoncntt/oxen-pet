@@ -15,3 +15,8 @@ test('each option sets its setting', () => {
 test('a value from another version, or a malformed one, takes its default', () => {
   expect(readSettings({ speed: 'ludicrous', sleepAfter: -5, hud: 'yes', retired: true })).toEqual(DEFAULTS)
 })
+
+test('targets stay hidden unless the user turns them on', () => {
+  expect(readSettings({}).targets).toBe(false)
+  expect(readSettings({ targets: true }).targets).toBe(true)
+})
