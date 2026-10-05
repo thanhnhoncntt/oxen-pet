@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { On, SessionUsage } from 'claude-code'
+import type { MockClock, TestBody } from 'claude-code/testing'
 
 const BAND = { component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 100, scroll: { offset: 0, bodyRows: 20 }, view: {} } } as const
 const HINT = { component: 'PromptHint', props: { isDraft: false, isWorking: false, hint: '⏵⏵ auto mode on' } } as const
@@ -8,10 +9,15 @@ const BLOCK = { name: 'block', sprite: ['ddddddd', 'ddddddd', 'ddddddd', 'dddddd
 const CAT = { name: 'Mochi', sprite: ['k.....k', 'kkkkkkk', 'kwkkkwk', 'kkkkkkk'], palette: { k: '#e8a33d', w: '#fff4e0' }, eyes: [[0, 1], [4, 1]] }
 const usage: SessionUsage = { startedAt: 0, context: { window: 200000, percent: 14 }, rateLimits: [{ kind: 'five_hour', percentUsed: 38 }] }
 
-/** Answers what the mod asks of Claude Code, and draws Claude Code's own hint line as one Text. Returns the mod's store, kept in memory. */
-function stubEngine(on: On) {
+/**
+ * Answers what the mod asks of Claude Code, and draws Claude Code's own hint line as one Text. Returns the mod's
+ * store, kept in memory. A test that moves the clock makes it with `mock.clock` and passes it in.
+ */
+function stubEngine(on: On, clock?: MockClock) {
   const store = new Map<string, unknown>()
-  mock.clock(on)
+  if (!clock) {
+    mock.clock(on)
+  }
   on('store.get', (_$, e) => ({ value: store.get(e.key) }))
   on('store.set', (_$, e) => {
     store.set(e.key, e.value)
@@ -181,4 +187,40 @@ test('preview_theme refuses a symbolic link planted at an allowed path, and writ
   expect(refused.deny ?? refused.text).toContain('symbolic link')
   expect(store.get('file:/tmp/oxen-pet-preview-evil.html')).toBeUndefined()
   expect(store.get('file:/Users/me/.zshrc')).toBeUndefined()
+})
+
+/** The HUD as drawn now, as one string. */
+async function hudText($: Parameters<TestBody>[0]) {
+  const hint = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...HINT })
+  const tree = JSON.stringify(await hint.drawn())
+  await hint.unmount()
+  return tree
+}
+
+const TURN = { turnId: 't1', answer: 'hi', durationMs: 10, isAborted: false, reason: 'answer' } as const
+
+test('the HUD counts the prompt cache down from the last main turn, and a subagent turn does not warm it', { options: { cacheTtl: '5m' } }, async ($, on) => {
+  const clock = mock.clock(on)
+  stubEngine(on, clock)
+  on('turn.complete', (_$, e) => ({ text: e.answer }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  expect(await hudText($)).not.toContain('cache')
+
+  await $.turn.complete(TURN as never)
+  await clock.advance(2 * 60000)
+  expect(await hudText($)).toContain('cache 3m')
+
+  await $.turn.complete({ ...TURN, turnId: 't2', agentId: 'a1' } as never)
+  await clock.advance(3 * 60000)
+  expect(await hudText($)).toContain('cache cold')
+})
+
+test('the cache timer turned off shows nothing after a turn', { options: { cacheTtl: 'off' } }, async ($, on) => {
+  stubEngine(on)
+  on('turn.complete', (_$, e) => ({ text: e.answer }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await $.turn.complete(TURN as never)
+  const tree = await hudText($)
+  expect(tree).toContain('♥ HP')
+  expect(tree).not.toContain('cache')
 })

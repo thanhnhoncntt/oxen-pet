@@ -14,7 +14,14 @@ export type Hud = {
   mpResetsInMin?: number
   st?: number // the 7-day rate limit left, %; absent like MP
   stResetsInMin?: number
+  cacheMin?: number // minutes the prompt cache stays warm, 0 once cold; absent before the first turn or with the timer off
 }
+
+// Each rate-limit window's length in minutes, which the pace runs through.
+export const MP_WINDOW_MIN = 300
+export const ST_WINDOW_MIN = 10080
+// How long a window runs before its burn rate is steady enough to forecast from.
+const FORECAST_AFTER_MIN = 15
 
 export type Mood = 'ok' | 'worried' | 'critical' | 'tired'
 
@@ -53,6 +60,37 @@ export function hudFrom(u: SessionUsage, now: number): Hud {
   }
 }
 
+/** How many points a limit's share left is ahead of an even pace through its window; negative when behind. */
+export function spareOf(left: number, resetsInMin: number, windowMin: number) {
+  const evenLeft = (clamp(resetsInMin, 0, windowMin) / windowMin) * 100
+
+  return Math.round(left - evenLeft)
+}
+
+/**
+ * Minutes until a limit runs out at its average burn so far in the window, when that comes before its reset.
+ * Absent when it lasts to the reset, or in the window's first minutes, when the rate is still noise.
+ */
+export function emptyInMin(left: number, resetsInMin: number, windowMin: number) {
+  const elapsed = windowMin - clamp(resetsInMin, 0, windowMin)
+  const used = 100 - left
+  if (elapsed < FORECAST_AFTER_MIN || used <= 0) {
+    return undefined
+  }
+  const empty = Math.round((left * elapsed) / used)
+
+  return empty < resetsInMin ? empty : undefined
+}
+
+/** Minutes the prompt cache stays warm after the main thread's last turn ended at `endedAt`, 0 once cold. */
+export function cacheLeftMin(endedAt: number | undefined, ttlMin: number, now: number) {
+  if (endedAt === undefined || ttlMin <= 0) {
+    return undefined
+  }
+
+  return Math.max(0, Math.ceil((ttlMin * 60000 - (now - endedAt)) / 60000))
+}
+
 export function mood(h: Hud): Mood {
   if (h.hp <= 25) {
     return 'critical'
@@ -83,10 +121,13 @@ const GOLD: Pair = [0xb45309, 0xfbbf24]
 const channel = (c: number, shift: number) => (c >> shift) & 255
 const mix = (a: number, b: number, t: number) =>
   [16, 8, 0].reduce((out, s) => out | (Math.round(channel(a, s) + (channel(b, s) - channel(a, s)) * t) << s), 0)
+// The even-pace mark on a bar. Light, so it shows on the bar's dark track and on its fill.
+export const MARKER_COLOR = 0xf1f5f9
+
 const darker = (c: number) => [16, 8, 0].reduce((out, s) => out | (Math.round(channel(c, s) * 0.6) << s), 0)
 
-/** A bevelled bar: grey end caps, a gradient fill with a darker lower half. */
-export function barCanvas(pct: number, [from, to]: Pair): Canvas {
+/** A bevelled bar: grey end caps, a gradient fill with a darker lower half, and a mark at `markPct` when given. */
+export function barCanvas(pct: number, [from, to]: Pair, markPct?: number): Canvas {
   const px = new Array<number>(BAR_W * 2).fill(0x1b1e26)
   const fill = Math.round((clamp(pct, 0, 100) / 100) * (BAR_W - 2))
   for (let i = 0; i < fill; i++) {
@@ -97,6 +138,11 @@ export function barCanvas(pct: number, [from, to]: Pair): Canvas {
   for (const x of [0, BAR_W - 1]) {
     px[x] = 0x6f7787
     px[BAR_W + x] = 0x6f7787
+  }
+  if (markPct !== undefined) {
+    const x = 1 + Math.round((clamp(markPct, 0, 100) / 100) * (BAR_W - 2))
+    px[Math.min(x, BAR_W - 2)] = MARKER_COLOR
+    px[BAR_W + Math.min(x, BAR_W - 2)] = MARKER_COLOR
   }
 
   return { w: BAR_W, h: 2, px }
@@ -119,6 +165,19 @@ const detail = (bits: (string | undefined)[]): HudPart[] => {
 }
 
 const resets = (min: number | undefined) => (min === undefined ? undefined : `reset in ${fmtMin(min)}`)
+const cache = (min: number | undefined) => (min === undefined ? undefined : min > 0 ? `cache ${fmtMin(min)}` : 'cache cold')
+const evenLeft = (resetsInMin: number | undefined, windowMin: number) =>
+  resetsInMin === undefined ? undefined : (clamp(resetsInMin, 0, windowMin) / windowMin) * 100
+const pace = (left: number, resetsInMin: number | undefined, windowMin: number) => {
+  if (resetsInMin === undefined) {
+    return undefined
+  }
+  const spare = spareOf(left, resetsInMin, windowMin)
+
+  return spare === 0 ? 'on pace' : spare > 0 ? `${spare}% spare` : `${-spare}% over`
+}
+/** The red warning that a limit runs out before its reset. */
+const runsOut = (min: number | undefined): HudPart[] => (min === undefined ? [] : [{ text: `  empty ~${fmtMin(min)}`, color: cssColor(RED[1]) }])
 
 const pairOf = (fill: [string, string] | undefined, fallback: Pair): Pair => (fill ? [parseInt(fill[0].slice(1), 16), parseInt(fill[1].slice(1), 16)] : fallback)
 
@@ -135,17 +194,23 @@ export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
     label: h.hp < 10 ? '⚠ HP' : '♥ HP',
     color: '#f87171',
     cells: encodeCells(barCanvas(h.hp, hpFill)),
-    parts: [reading(`${h.hp}%`, hpFill), ...(h.hp < 10 ? [{ ...reading('/compact', RED), text: '  /compact' }] : [])],
+    parts: [reading(`${h.hp}%`, hpFill), ...(h.hp < 10 ? [{ ...reading('/compact', RED), text: '  /compact' }] : []), ...detail([cache(h.cacheMin)])],
   })
   if (h.mp !== undefined) {
     const mpFill = h.mp < 15 ? RED : pairOf(look.mp ? look.mp.fill : undefined, BLUE)
+    // Running out before the reset says more than how far over pace MP is, so it takes that place.
+    const empty = h.mpResetsInMin === undefined ? undefined : emptyInMin(h.mp, h.mpResetsInMin, MP_WINDOW_MIN)
     rows.push({
       key: 'mp',
       look: look.mp,
       label: '✦ MP',
       color: '#7aa7ff',
-      cells: encodeCells(barCanvas(h.mp, mpFill)),
-      parts: [reading(`${h.mp}%`, mpFill), ...detail([resets(h.mpResetsInMin)])],
+      cells: encodeCells(barCanvas(h.mp, mpFill, evenLeft(h.mpResetsInMin, MP_WINDOW_MIN))),
+      parts: [
+        reading(`${h.mp}%`, mpFill),
+        ...detail([resets(h.mpResetsInMin), empty === undefined ? pace(h.mp, h.mpResetsInMin, MP_WINDOW_MIN) : undefined]),
+        ...runsOut(empty),
+      ],
     })
   }
   if (h.st !== undefined) {
@@ -155,8 +220,8 @@ export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
       look: look.st,
       label: '◆ ST',
       color: '#fbbf24',
-      cells: encodeCells(barCanvas(h.st, stFill)),
-      parts: [reading(`${h.st}%`, stFill), ...detail([resets(h.stResetsInMin)])],
+      cells: encodeCells(barCanvas(h.st, stFill, evenLeft(h.stResetsInMin, ST_WINDOW_MIN))),
+      parts: [reading(`${h.st}%`, stFill), ...detail([resets(h.stResetsInMin), pace(h.st, h.stResetsInMin, ST_WINDOW_MIN)])],
     })
   }
   const shown = rows
@@ -180,4 +245,4 @@ export function windowEdges(width: number) {
 }
 
 /** The HUD window's width in cells, sides included: room for a label, a bar and the longest row's text. */
-export const HUD_WINDOW_W = 54
+export const HUD_WINDOW_W = 64

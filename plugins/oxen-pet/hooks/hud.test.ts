@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
 
-import { BAR_W, DETAIL_COLOR, HUD_WINDOW_W, barCanvas, fmtMin, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
+import { BAR_W, DETAIL_COLOR, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
 
 const usage = (over: Partial<SessionUsage> = {}): SessionUsage => ({
   startedAt: 0,
@@ -45,7 +45,7 @@ test('a bar fills in proportion and keeps its end caps', () => {
 test('the rows name every stat, and HP warns when context runs out', () => {
   const rows = hudRows({ hp: 86, mp: 62, mpResetsInMin: 133, st: 64, stResetsInMin: 4476 })
   const text = (r: (typeof rows)[number]) => r.label + r.parts.map(p => p.text).join('')
-  expect(rows.map(text)).toEqual(['♥ HP 86%', '✦ MP 62%  reset in 2h13m', '◆ ST 64%  reset in 3d2h'])
+  expect(rows.map(text)).toEqual(['♥ HP 86%', '✦ MP 62%  reset in 2h13m  18% spare', '◆ ST 64%  reset in 3d2h  20% spare'])
   expect(text(hudRows({ hp: 8 })[0]!)).toBe('⚠ HP 8%  /compact')
 })
 
@@ -86,4 +86,63 @@ test("a pet's HUD look relabels, recolors, and hides bars, and keeps the warning
   expect(hudRows(h, { hp: false, mp: false, st: false })).toEqual([])
   expect(frameColor({ frame: '#44cc44' })).toBe('#44cc44')
   expect(frameColor({})).toBe('#5aa9ff')
+})
+
+test('the spare is how far a limit is ahead of an even pace through its window', () => {
+  expect(spareOf(81, 4320, 10080)).toBe(38)
+  expect(spareOf(99, 272, 300)).toBe(8)
+  expect(spareOf(30, 200, 300)).toBe(-37)
+  expect(spareOf(50, 20000, 10080)).toBe(-50)
+})
+
+test('MP runs out before its reset only at a burn faster than the window allows, and not in its first minutes', () => {
+  expect(emptyInMin(40, 180, 300)).toBe(80)
+  expect(emptyInMin(90, 150, 300)).toBeUndefined()
+  expect(emptyInMin(80, 290, 300)).toBeUndefined()
+  expect(emptyInMin(100, 100, 300)).toBeUndefined()
+  expect(emptyInMin(0, 100, 300)).toBe(0)
+})
+
+test('the cache counts down from the last main turn, and goes cold at its TTL', () => {
+  expect(cacheLeftMin(undefined, 60, 0)).toBeUndefined()
+  expect(cacheLeftMin(0, 0, 60000)).toBeUndefined()
+  expect(cacheLeftMin(0, 60, 8 * 60000)).toBe(52)
+  expect(cacheLeftMin(0, 60, 8 * 60000 + 1)).toBe(52)
+  expect(cacheLeftMin(0, 5, 5 * 60000)).toBe(0)
+  expect(cacheLeftMin(0, 5, 9 * 60000)).toBe(0)
+})
+
+test('a bar marks its even pace with a light column across both pixel rows', () => {
+  const bar = barCanvas(81, [0xb45309, 0xfbbf24], 43)
+  const x = 1 + Math.round(0.43 * (BAR_W - 2))
+  expect([bar.px[x], bar.px[BAR_W + x]]).toEqual([MARKER_COLOR, MARKER_COLOR])
+  expect(barCanvas(81, [0xb45309, 0xfbbf24]).px.includes(MARKER_COLOR)).toBe(false)
+})
+
+test('HP shows the cache left, MP its spare or when it runs out, ST its spare or overrun', () => {
+  const text = (r: ReturnType<typeof hudRows>[number]) => r.label + r.parts.map(p => p.text).join('')
+  expect(hudRows({ hp: 96, cacheMin: 52, mp: 99, mpResetsInMin: 272, st: 81, stResetsInMin: 4320 }).map(text)).toEqual([
+    '♥ HP 96%  cache 52m',
+    '✦ MP 99%  reset in 4h32m  8% spare',
+    '◆ ST 81%  reset in 3d0h  38% spare',
+  ])
+  expect(text(hudRows({ hp: 90, cacheMin: 0 })[0]!)).toBe('♥ HP 90%  cache cold')
+  const [, mp, st] = hudRows({ hp: 90, mp: 40, mpResetsInMin: 180, st: 20, stResetsInMin: 5040 })
+  expect(text(mp!)).toBe('✦ MP 40%  reset in 3h00m  empty ~1h20m')
+  expect(mp!.parts.at(-1)).toEqual({ text: '  empty ~1h20m', color: '#f87171' })
+  expect(text(st!)).toBe('◆ ST 20%  reset in 3d12h  30% over')
+  expect(text(hudRows({ hp: 90, mp: 70, mpResetsInMin: 210 })[1]!)).toBe('✦ MP 70%  reset in 3h30m  on pace')
+})
+
+test('the longest rows fit inside the HUD window', () => {
+  const huds = [
+    { hp: 5, cacheMin: 59, mp: 40, mpResetsInMin: 239, st: 3, stResetsInMin: 10079 },
+    { hp: 100, cacheMin: 0, mp: 100, mpResetsInMin: 299, st: 100, stResetsInMin: 1439 },
+  ]
+  const look = { hp: { label: '☢ FUEL' }, mp: { label: 'MANA!!' }, st: { label: 'STAMNA' } }
+  for (const h of huds) {
+    for (const r of hudRows(h, look)) {
+      expect([...r.label].length + 1 + BAR_W + r.parts.map(p => [...p.text].length).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(HUD_WINDOW_W - 3)
+    }
+  }
 })

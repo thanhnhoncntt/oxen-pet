@@ -151,7 +151,7 @@ The HUD is the window below the prompt, with up to three bars:
 | `mp` | The 5-hour rate limit left | `✦ MP` |
 | `st` | The 7-day rate limit left | `◆ ST` |
 
-`mp` and `st` appear only once the session has a reading for that limit, which Pro and Max plans report after a response.
+`mp` and `st` appear only once the session has a reading for that limit, which Pro and Max plans report after a response. Each draws a light even-pace mark on its bar; the mark, the cache timer, and the details are the mod's, not the theme's.
 
 ```json
 "hud": { "frame": "#c8681f", "hp": { "label": "LIVES", "color": "#f0903c", "fill": ["#8a4a0c", "#ffc27a"] }, "st": false }

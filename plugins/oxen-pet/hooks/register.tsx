@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Anim, Mode } from '../types'
 import { TICK_MS, fail, leapClipMs, step } from './anim'
-import { BAR_W, HUD_WINDOW_W, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
+import { BAR_W, HUD_WINDOW_W, cacheLeftMin, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
@@ -124,6 +124,7 @@ export const register: Register = (on, options) => {
   let showsError = false
   let body: Body | undefined
   let hud: Hud | undefined
+  let lastTurnEndAt: number | undefined // when the main thread's last turn ended, which keeps its prompt cache warm
   let minis: Mini[] = []
   let previewed: unknown // the last theme preview_theme drew, for set_theme to apply without resending it
   let layout: SceneLayout | undefined // the scene of `layoutOf` on a band `bandWidth()` wide
@@ -147,6 +148,7 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     await update($, anim, () => ({ mode: 'idle', since: now, x: 0, dir: 1, tick: 0, target: '', working: false }))
     hud = await usageOr($, now, undefined)
+    lastTurnEndAt = undefined
     try {
       await $.tool.register({
         name: 'preview_theme',
@@ -204,6 +206,17 @@ export const register: Register = (on, options) => {
     })
 
     return next(e)
+  })
+
+  // A subagent's requests carry its own prompt, so only the main thread's turns keep the session's cache warm.
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId === undefined) {
+      lastTurnEndAt = await $.clock.now()
+      $.ui.invalidate('ui.render')
+    }
+
+    return result
   })
 
   on('tool.call', async ($, e, next) => {
@@ -288,7 +301,8 @@ export const register: Register = (on, options) => {
     if (!body) {
       body = await keptBody($)
     }
-    const rows = hudRows(hud, body.look.hud)
+    const cacheMin = cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, await $.clock.now())
+    const rows = hudRows({ ...hud, cacheMin }, body.look.hud)
     if (rows.length === 0) {
       return next(e)
     }

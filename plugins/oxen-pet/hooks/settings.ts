@@ -6,11 +6,13 @@ export type Settings = {
   statusLine: boolean
   targets: boolean // the status line names files, patterns, commands, and hosts
   minis: boolean
+  cacheTtlMin: number // how long the prompt cache stays warm after a turn; 0 hides the cache timer
 }
 
 const PACE: Record<string, number> = { slow: 0.6, normal: 1, fast: 1.6 }
+const CACHE_TTL: Record<string, number> = { '1h': 60, '5m': 5, off: 0 }
 
-export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true }
+export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true, cacheTtlMin: 60 }
 
 const flag = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
 
@@ -28,5 +30,6 @@ export function readSettings(options: Readonly<Record<string, unknown>>): Settin
     statusLine: flag(options.statusLine, DEFAULTS.statusLine),
     targets: flag(options.targets, DEFAULTS.targets),
     minis: flag(options.minis, DEFAULTS.minis),
+    cacheTtlMin: Object.hasOwn(CACHE_TTL, String(options.cacheTtl)) ? CACHE_TTL[String(options.cacheTtl)]! : DEFAULTS.cacheTtlMin,
   }
 }

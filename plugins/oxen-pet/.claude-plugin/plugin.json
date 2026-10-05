@@ -1,6 +1,6 @@
 {
   "name": "oxen-pet",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A pixel pet above the prompt that acts out each tool call, plus an HP/MP/ST HUD below it. Hardened fork of pixel-pet.",
   "author": {
     "name": "NhonNguyen"
@@ -53,6 +53,17 @@
       "title": "Name files and commands",
       "description": "The status line names the file, pattern, command, host, or search query a tool works on. Off by default so a shared screen shows no file names or commands.",
       "default": false
+    },
+    "cacheTtl": {
+      "type": "string",
+      "title": "Cache timer",
+      "description": "How long the HUD counts the prompt cache warm after a turn: 1h, 5m, or off.",
+      "options": [
+        "1h",
+        "5m",
+        "off"
+      ],
+      "default": "1h"
     },
     "minis": {
       "type": "boolean",

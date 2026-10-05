@@ -26,8 +26,9 @@ const WHEN: Record<Mode, string> = {
 // What the status line names in each mode, for the lines that name something.
 const SAMPLE_TARGET: Partial<Record<Mode, string>> = { read: 'app.ts', search: 'useState', edit: 'app.ts', bash: 'npm test', web: 'docs.anthropic.com' }
 const SAMPLE_HUDS: [string, Hud][] = [
-  ['Early in a session', { hp: 86, mp: 72, mpResetsInMin: 213, st: 64, stResetsInMin: 4560 }],
-  ['Running low', { hp: 22, mp: 12, mpResetsInMin: 41, st: 9, stResetsInMin: 1500 }],
+  ['Early in a session', { hp: 86, cacheMin: 52, mp: 72, mpResetsInMin: 213, st: 64, stResetsInMin: 4560 }],
+  ['Running low', { hp: 22, cacheMin: 0, mp: 12, mpResetsInMin: 41, st: 9, stResetsInMin: 1500 }],
+  ['Burning fast', { hp: 70, cacheMin: 4, mp: 40, mpResetsInMin: 180, st: 20, stResetsInMin: 5040 }],
 ]
 const MOTION_FPS = 10
 const SCENE_W = 96 // columns of the sample band

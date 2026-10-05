@@ -147,6 +147,7 @@ Options left out keep their values. The change applies after Claude Code restart
 | `statusLine` | `true`, `false` | The text beside the pet. |
 | `targets` | `true`, `false` | The status line names the file, pattern, command, host, or search query. `false` suits a shared screen. |
 | `minis` | `true`, `false` | A mini behind the pet for each running subagent. |
+| `cacheTtl` | `1h`, `5m`, `off` | How long the HUD counts the prompt cache warm after a turn. |
 
 ## Troubleshooting
 

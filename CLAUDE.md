@@ -10,6 +10,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - **mini**: the small drop for one running subagent, in the pet's `mini` colors. **trail**: the minis behind the pet.
 - **HUD**: the window below the prompt with up to three bars. **HP** is the context window left, **MP** the 5-hour rate limit left, **ST** the 7-day rate limit left.
 - **reading**: the bold number after a bar. **detail**: the grey text after the reading.
+- **even pace**: where MP or ST would be if its limit were used evenly through its window, marked on the bar; **spare** is how far the reading is ahead of it. **cache timer**: the minutes the prompt cache stays warm after the main thread's last turn, shown beside HP.
 - **settings**: the user's choices from the plugin's `userConfig`, read by `settings.ts`. **pace**: the speed setting as a multiplier.
 - **prop**: what the pet holds beside it in a mode (a book, a terminal), the mod's or the pet's own; `props.think` also stands in for the question mark. **look**: what a theme changes beyond the pet's drawing: status lines, line colors, and the HUD.
 - **scene**: a theme's background for the band, from `scene.ts`: a **ground** row below the pet, a **sky** drawing that stays put near the top right, **obstacles** standing on the ground, and **decor** behind the pet; raised decor drifts. **leap**: a running pet's jump over an obstacle, the jump clip slowed while it travels.

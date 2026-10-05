@@ -45,10 +45,14 @@ With **Name files and commands** on, the status line also names the target, such
 A pixel window below the prompt holds up to three bars:
 
 - **♥ HP** is the context window left. Yellow at 50 % or less, red at 25 % or less, `/compact` under 10 %.
+  Beside it, `cache 52m` counts down how long the prompt cache stays warm after the last turn, then reads `cache cold`.
 - **✦ MP** is the 5-hour rate limit left, with the time to its reset.
 - **◆ ST** is the 7-day rate limit left, with the time to its reset.
 
 MP and ST turn red under 15 %, and show on Pro and Max plans once a response has reported its limit.
+A light mark on each of their bars shows the even pace: where the bar would be if the limit were used
+evenly through its window. The detail says how far ahead of it you are (`38% spare`) or behind (`5% over`).
+When MP's burn so far would empty it before its reset, MP reads `empty ~1h20m` in red instead.
 
 ## Make it yours
 
@@ -70,6 +74,7 @@ In a session, run `/plugin configure oxen-pet@oxen-pet`.
 | Status line | on | The text beside the pet. |
 | Name files and commands | **off** | The status line names the file, pattern, command, host, or search query a tool works on. |
 | Subagent minis | on | A mini behind the pet for each running subagent. |
+| Cache timer | `1h` | How long the HUD counts the prompt cache warm after a turn: `1h`, `5m`, or `off`. |
 
 From a shell:
 
@@ -85,7 +90,7 @@ claude plugin update oxen-pet@oxen-pet
 ```
 
 Installed copies update only when `version` in `plugins/oxen-pet/.claude-plugin/plugin.json`
-changes. Upstream changes come in only by review: see "Taking an upstream change" in
+changes. What each version changed is in [`CHANGELOG.md`](CHANGELOG.md). Upstream changes come in only by review: see "Taking an upstream change" in
 [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md).
 
 ## Where it shows
