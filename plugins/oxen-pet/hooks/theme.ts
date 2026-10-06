@@ -9,6 +9,7 @@ import type { Scene } from './scene'
 export type Theme = {
   name: string
   scale: number
+  squash: number // how much the poses squash and stretch the sprite: 1 fully, 0 not at all, so it only lifts
   sprite: string[]
   palette: Record<string, string>
   outline?: string
@@ -24,8 +25,8 @@ export type Theme = {
 } & Look
 
 /** The sprite fields a form sets for one mode; those it leaves out are the pet's own. */
-export type Form = Pick<Theme, 'scale' | 'sprite' | 'palette' | 'outline' | 'eyes' | 'eyeColor' | 'cheeks' | 'cheekColor'>
-const FORM_KEYS = ['sprite', 'palette', 'scale', 'outline', 'eyes', 'eyeColor', 'cheeks', 'cheekColor'] as const
+export type Form = Pick<Theme, 'scale' | 'squash' | 'sprite' | 'palette' | 'outline' | 'eyes' | 'eyeColor' | 'cheeks' | 'cheekColor'>
+const FORM_KEYS = ['sprite', 'palette', 'scale', 'squash', 'outline', 'eyes', 'eyeColor', 'cheeks', 'cheekColor'] as const
 
 // The frames mark cheeks and sparkles, and the resting frame pupils, with characters a palette may not use.
 const CHEEK_MARK = '*'
@@ -356,6 +357,15 @@ export function readTheme(v: unknown): { theme: Theme; notes: string[]; errors?:
     notes.push(`A ${w}×${h} sprite is drawn at scale ${scale} to fit every pose. At scale 1 the largest is ${maxSize(1).w}×${maxSize(1).h}, and a smaller scale blurs detail.`)
   }
 
+  let squash = 1
+  if (v.squash !== undefined) {
+    const isNumber = typeof v.squash === 'number' && Number.isFinite(v.squash)
+    squash = isNumber ? Math.min(1, Math.max(0, v.squash as number)) : 1
+    if (!isNumber || squash !== v.squash) {
+      notes.push(`\`squash\` is a number from 0 to 1, so ${JSON.stringify(v.squash)} reads as ${squash}.`)
+    }
+  }
+
   const outline = typeof v.outline === 'string' && v.outline in palette ? v.outline : undefined
   const eyes = isPair(v.eyes) ? v.eyes : undefined
   if (v.eyes !== undefined && eyes === undefined) {
@@ -389,6 +399,7 @@ export function readTheme(v: unknown): { theme: Theme; notes: string[]; errors?:
     theme: {
       name,
       scale,
+      squash,
       sprite: rows,
       palette,
       outline,
@@ -442,7 +453,7 @@ function readForms(v: Record<string, unknown>, notes: string[]): Theme['forms'] 
     }
     notes.push(...read.notes.filter(n => !before.has(n)).map(n => `forms.${mode}: ${n}`))
     const t = read.theme
-    forms[mode as Mode] = { scale: t.scale, sprite: t.sprite, palette: t.palette, outline: t.outline, eyes: t.eyes, eyeColor: t.eyeColor, cheeks: t.cheeks, cheekColor: t.cheekColor }
+    forms[mode as Mode] = { scale: t.scale, squash: t.squash, sprite: t.sprite, palette: t.palette, outline: t.outline, eyes: t.eyes, eyeColor: t.eyeColor, cheeks: t.cheeks, cheekColor: t.cheekColor }
   }
 
   return forms
@@ -451,7 +462,9 @@ function readForms(v: Record<string, unknown>, notes: string[]): Theme['forms'] 
 const colorOf = (color: string) => parseInt(color.slice(1), 16)
 
 function poseFrame(theme: Form, pose: Pose, extra: [number, number][] = []): BodyFrame {
-  const [sx, sy, dy] = [pose[0] * theme.scale, pose[1] * theme.scale, pose[2] * theme.scale]
+  // squash scales how far the pose bends the sprite; the lift stays whole.
+  const bend = (f: number) => 1 + (f - 1) * theme.squash
+  const [sx, sy, dy] = [bend(pose[0]) * theme.scale, bend(pose[1]) * theme.scale, pose[2] * theme.scale]
   const sw = (theme.sprite[0] as string).length
   const sh = theme.sprite.length
   const cx = sw / 2

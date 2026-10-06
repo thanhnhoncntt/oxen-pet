@@ -63,14 +63,14 @@ To uninstall, run `claude plugin uninstall oxen-pet@oxen-pet`.
 
 | Gear | When | Luffy |
 | --- | --- | --- |
-| **Gear 1** | Idle, sleeping, thinking, reading, searching | Straw hat and grin; gnaws on meat while he reads. *"I'm gonna be King of the Pirates!"* |
-| **Gear 2** | Bash, running, jumping | Pink and steaming. *"Gear Second! $ npm test"* |
-| **Gear 3** | Editing | Slams a giant fist. *"Gomu Gomu no Elephant Gun!"* |
-| **Gear 4** | A failed call, the shield up | Red haki, smoking shoulders. *"Not on my ship!"* |
-| **Gear 5** | A turn ends, a boss falls | White cloud hair, red eyes, the drums of liberation. *"Shishishi! Freedom!"* |
+| **Gear 1** | Idle, sleeping, thinking, reading, searching | Straw hat, red vest, yellow sash; gnaws on meat while he reads. *"Gonna be King of the Pirates!"* |
+| **Gear 2** | Bash, running, jumping | Pink steam; a flaming **Red Hawk** punch on every command. *"Gear Second! $ npm test"* |
+| **Gear 3** | Editing | A giant Haki fist: **Elephant Gun**. *"Gomu Gomu no Elephant Gun!"* |
+| **Gear 4** | A failed call, the shield up | **Boundman**, and a **Kong Gun** when a call fails. *"Not on my ship!"* |
+| **Gear 5** | A turn ends, a boss falls | **Nika**: white cloud hair, clouds curling behind his back, the drums of liberation. *"Shishishi! Freedom!"* |
 
-He calls the web on a Den Den Mushi (*"puru puru puru…"*), sends straw-hat minis out as subagents
-(*"Zoro, don't get lost!"*), and runs over the sea under the Jolly Roger.
+He calls the web on a Den Den Mushi (*"puru puru puru…"*), throws a **Gatling** and sends straw-hat
+minis out as subagents (*"Zoro, don't get lost!"*), and runs over the sea under the Jolly Roger.
 
 ## What the pet does
 

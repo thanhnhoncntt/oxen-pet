@@ -264,3 +264,41 @@ test('a theme kept before forms existed reads with none', () => {
   expect(read.errors).toBeUndefined()
   expect(read.errors ? undefined : read.theme.forms).toEqual({})
 })
+
+// A person-shaped pet, which squashing would distort.
+const PERSON = { name: 'person', sprite: ['..aaa..', '..aaa..', 'aaaaaaa', '..a.a..', '..a.a..'], palette: { a: '#336699' } }
+
+test('squash 0 keeps the sprite\'s shape in every pose: it only lifts it, so a jump moves it up whole', () => {
+  const read = readTheme({ ...PERSON, squash: 0 })
+  if (read.errors) {
+    throw new Error(read.errors.join('\n'))
+  }
+  expect(read.notes).toEqual([])
+  const body = animate(read.theme)
+  const resting = body.clips.stand.frames[0]!.g
+  for (const clip of ['stand', 'run', 'think'] as const) {
+    for (const frame of body.clips[clip].frames.filter(f => f.g.at(-1) !== '.'.repeat(19))) {
+      expect(frame.g).toEqual(resting)
+    }
+  }
+  // The jump's highest frame is the resting one lifted 9 pixels.
+  const top = body.clips.jump.frames[6]!.g
+  expect(top.slice(0, -9)).toEqual(resting.slice(9))
+})
+
+test('squash between 0 and 1 squashes less than the default, and a value out of range is clamped with a note', () => {
+  const width = (squash: number) => {
+    const read = readTheme({ ...PERSON, squash })
+    if (read.errors) {
+      throw new Error(read.errors.join('\n'))
+    }
+    // The jump's landing frame stretches the most: 1.25 across.
+    return Math.max(...animate(read.theme).clips.jump.frames[11]!.g.map(r => r.replace(/^\.+|\.+$/g, '').length))
+  }
+  expect(width(1)).toBeGreaterThan(width(0.3))
+  expect(width(0.3)).toBeGreaterThanOrEqual(width(0))
+  const read = readTheme({ ...PERSON, squash: 3 })
+  expect(read.errors ? read.errors : read.notes).toContain('`squash` is a number from 0 to 1, so 3 reads as 1.')
+  const bad = readTheme({ ...PERSON, squash: 'lots' })
+  expect(bad.errors ? bad.errors : bad.notes).toContain('`squash` is a number from 0 to 1, so "lots" reads as 1.')
+})

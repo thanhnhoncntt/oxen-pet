@@ -49,6 +49,7 @@
     "K": "#2a2a33",
     "c": "#f9f0d7"
   },
+  "squash": 0.15,
   "miniSprite": [
     ".hhh.",
     "hhhhh",
@@ -160,11 +161,11 @@
         "...............",
         "......tLt......",
         ".tt.ttttttt.tt.",
-        "t..ttqgqgqtt..t",
-        "t.tL.qqtqq.tL.t",
-        ".tt.qttqttq.tt.",
-        "..t.qtllltq.t..",
-        ".....tt.tt.....",
+        "tLLttqgqgqttLLt",
+        "LttL.qqtqq.LttL",
+        "LtLtqttqttqtLtL",
+        "tLLtqtllltqtLLt",
+        ".tt..tt.tt..tt.",
         ".....q...q.....",
         "....pp...pp...."
       ]

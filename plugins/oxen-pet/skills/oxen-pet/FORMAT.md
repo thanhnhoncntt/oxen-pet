@@ -11,6 +11,7 @@ Four pets ship with the plugin. [`assets/luffy.json`](../../assets/luffy.json), 
 | `eyes` | | Two `[x, y]` points: the top-left pixel of each eye's 2×2 pupil. `x` counts from the left and `y` from the top, both from 0. Without `eyes` the pet has no eyes and shows no faces. |
 | `name` | | 1 to 24 characters. Default `"pet"`. |
 | `scale` | | Default 1, where one sprite pixel is one screen pixel. A sprite too big for the scale draws at the largest scale that fits. |
+| `squash` | | How much the motions squash and stretch the sprite, from `0` to `1`. Default `1`, which suits a round pet. A person or anything with limbs reads better at `0.1` to `0.3`: it bobs and hops without bending out of shape. |
 | `outline` | | The palette character of the outline. It counts extra when the pet squashes, so the outline stays unbroken. |
 | `eyeColor` | | The pupils' color. Default `"#000000"`. It recolors the pupils only: eye whites, stars, and hearts keep their own colors. |
 | `cheeks` | | Two `[x, y]` pixels, one per cheek. |
@@ -66,7 +67,7 @@ The hearts and stars fill the whole box, so a cheek right next to a box touches 
 
 ## How the pet moves
 
-The mod makes every motion and face from the one sprite. It stretches and squashes the sprite to stand, run, jump, think, and cheer, and lifts it up to 9 pixels for a jump. The preview shows each motion under the mode that plays it. A compact shape with a wide, flat bottom reads best.
+The mod makes every motion and face from the one sprite. It stretches and squashes the sprite to stand, run, jump, think, and cheer, and lifts it up to 9 pixels for a jump. `squash` sets how far it bends: lower it for a pet that should keep its shape. The preview shows each motion under the mode that plays it. A compact shape with a wide, flat bottom reads best.
 
 A squash shrinks the sprite by up to a third, so a feature one pixel thin can vanish in it. A beak, ears, or a tail that is at least 2 pixels thick survives every pose. The duck's beak is 2 rows tall and survives; its 1-pixel tail flickers.
 
@@ -133,7 +134,7 @@ A form changes how the pet itself looks while one mode plays: a new color, a new
 
 Here the pet turns pink while it runs a command, and takes another shape when a turn ends.
 
-- A form takes the sprite fields: `sprite`, `palette`, `eyes`, `eyeColor`, `cheeks`, `cheekColor`, `outline`, and `scale`. A field it leaves out is the pet's own.
+- A form takes the sprite fields: `sprite`, `palette`, `eyes`, `eyeColor`, `cheeks`, `cheekColor`, `outline`, `scale`, and `squash`. A field it leaves out is the pet's own.
 - `palette` adds to the pet's palette: a form that only recolors names just the characters it changes.
 - A form's sprite fits the canvas like the pet's, and the mod makes every clip of it: stand, run, jump, think, and cheer, so it moves like the pet.
 - Any mode may have a form, `run` and `jump` included. A leap plays the `jump` form.
