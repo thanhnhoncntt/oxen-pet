@@ -1,6 +1,6 @@
 {
   "name": "oxen-meter",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Measures the prompt cache for a team: hit rate per session, subagent and model, a warning before a cold resume re-writes a whole context, and an anonymized export to pool cost and quota data. Records token counts and timings only, never prompts, code or paths.",
   "author": {
     "name": "NhonNguyen"

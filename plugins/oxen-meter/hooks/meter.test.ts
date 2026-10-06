@@ -447,3 +447,35 @@ test('a model switch reports the main thread\'s TTL, which the pane takes as mea
   await $.classic.PostModelSwitch({ from_model: 'a', to_model: 'b', requested_model: null, source: 'command', context_tokens: 1, prompt_cache_warm: true, cache_ttl: '5m', estimated_cache_write_usd: 0, pricing: 'catalog' } as never)
   expect(await paneText($)).toContain('main 5m (measured: 1)')
 })
+
+test('/meter export writes the last days\' sessions, anonymized, to the exports folder through the guard', { options: { dataDir: '/home/me/meter', userLabel: 'Nhon N.' } }, async ($, on) => {
+  stubEngine(on)
+  const fs = stubFs(on)
+  stubModel(on, [])
+  on('tool.call', { tool: 'Bash' }, () => ({ result: { stdout: '', stderr: '', interrupted: false } }) as never)
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await $.classic.SubagentStart({ agent_id: AGENT, agent_type: 'Explore' })
+  await runStep($, { ...STEP, agentId: AGENT })
+  await runStep($, STEP)
+  await $.tool.call({ tool: 'Bash', command: 'git commit -m "secret message"' } as never)
+
+  const out = await $.command.run({ command: 'meter', args: 'export', ...RUN } as never)
+  const path = fs.writes.find(p => p.includes('/exports/'))!
+  expect(path).toMatch(/^\/home\/me\/meter\/exports\/oxen-meter-export-\d{8}-nhon-n\.json$/)
+  expect(String(out.text)).toContain(`wrote 1 session of the last 30 days to ${path}`)
+  const text = fs.files.get(path)!.text
+  expect(JSON.parse(text)).toMatchObject({ kind: 'oxen-meter-export', v: 1, label: 'Nhon N.', days: 30, summary: { sessions: 1 } })
+  expect(JSON.parse(text).sessions[0].id).toMatch(/^[0-9a-f]{12}$/)
+  for (const kept of [SID, AGENT, 'secret', '/home/me']) {
+    expect(text).not.toContain(kept)
+  }
+})
+
+test('with no data folder, /meter export writes nothing and says how to set one', async ($, on) => {
+  stubEngine(on)
+  const fs = stubFs(on)
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  const out = await $.command.run({ command: 'meter', args: 'export 7', ...RUN } as never)
+  expect(fs.writes).toEqual([])
+  expect(String(out.text)).toContain('set Data folder')
+})

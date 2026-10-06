@@ -46,6 +46,13 @@ until you say so, and failing tests summon a **bug boss** to beat.
 - 🔒 **Safe to run.** No network, no processes, no environment variables, no tokens spent. It is a
   hardened, audited fork of [pixel-pet](https://github.com/Namenomeaning/pixel-pet).
 
+## oxen-meter: the prompt cache, for a team
+
+The same marketplace has a second plugin with no pet: **oxen-meter** measures the prompt cache hit rate of every
+session, subagent and model, warns before a cold resume writes a whole context to the cache again, and exports
+anonymized numbers for a team report. Install it with `claude plugin install oxen-meter@oxen-pet`; its
+[README](plugins/oxen-meter/README.md) says what it records and how to read the report.
+
 ## Install
 
 You need Claude Code v2.1.287 or later (`claude --version`).
@@ -323,6 +330,9 @@ plugins/oxen-meter/               the prompt cache meter: a mod with no band
   hooks/sessionFile.ts            a session's file: written whole, kept under 3 MiB, emptied when expired
   hooks/dataPath.ts               where the meter may write
   hooks/resume.ts                 the cold resume guard: who a message resumes, the risk, what the user is asked
+  hooks/exportFile.ts             /meter export: the sessions of the last days, anonymized
+  README.md                       for the team: install, use, reading the report, what it records
+tools/meter/aggregate.mjs         builds the team report from exports (developer tool, never shipped)
   hooks/project.ts                the project's name, hashed
   hooks/report.ts                 the /meter pane's rows and /meter report
   hooks/codex.ts                  which Bash calls are Codex handoffs or outcomes
@@ -342,6 +352,7 @@ claude plugin validate plugins/oxen-pet --strict
 claude plugin test plugins/oxen-pet
 claude plugin validate plugins/oxen-meter --strict
 claude plugin test plugins/oxen-meter
+node --test tools/meter/aggregate.test.mjs
 ```
 
 After one `--plugin-dir` session, `npx -p typescript tsc -p plugins/oxen-pet` type-checks the mod.

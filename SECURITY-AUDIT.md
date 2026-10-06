@@ -137,6 +137,15 @@ not a folder. The data folder's own ancestors may be links (a `.claude` folder k
 There is no delete: `$.fs` has none. A session file past **Keep sessions (days)** is written over with
 `{"v":1,"expired":true}` and stays as those few bytes.
 
+`/meter export` writes the sessions of the last days to `exports/`, anonymized (`hooks/exportFile.ts`): session ids
+hashed with the user's salt, agent and turn ids replaced by `a1`, `t1`, MCP tool names reduced to `mcp`, times counted
+from the session's start, no folder. The user sends the file on by hand; the meter sends nothing.
+
+`tools/meter/aggregate.mjs` builds the team report from exports. It is a developer tool a person runs by hand, outside
+`plugins/oxen-meter`, so no install ships it and Claude Code never loads it. It reads the export files it is given and,
+unless `--no-codex`, the `token_count` lines of `~/.codex/sessions` (it skips every other line, prompts and code
+among them); it writes `team-report.md` and `team-report.json` in `--out`. No network, no process.
+
 One hook can hold anything back: `session.send`, the cold resume guard. With **Cold resume guard** set to `ask`, and
 only for a message Claude sends (not a plugin's) to an agent whose cache likely went cold with at least **Cold resume
 tokens** of context, it asks the user; on **Spawn a fresh agent** alone it answers `isDelivered: false`, and Claude

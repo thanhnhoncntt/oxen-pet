@@ -33,7 +33,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - **warm sample**, **cold sample**: a step judged against the step before it in its thread, by whether it read that context back (`analyze.ts`). **measured TTL**: one Claude Code reported (an Agent call's 5m/1h cache writes, a model switch). **inferred TTL**: one the samples show. A role's TTL is the setting's, else measured, else inferred, else the default (1h main, 5m subagent).
 - **token equivalent**: steps' cost in uncached input tokens: writes at 1.25 (5m) or 2 (1h), reads at 0.1, output at the **output weight** setting.
 - **resume guard**: the `session.send` hook that warns, or asks, before a SendMessage resumes an agent whose cache likely went cold (`resume.ts`); **guard mode** is its setting, off, warn or ask. **cold start**: a thread waking on its own past its TTL, warned about at the start of its step.
-- **data folder**: where the meter writes (`dataPath.ts`). **session file**: one session's records and totals, `sessions/<session id>.json`, written whole by the timer (`sessionFile.ts`). **emptied file**: a session file past the retention days, written over with a tombstone, since nothing can delete it. **report**: `/meter report`, the session files of the last days added up.
+- **data folder**: where the meter writes (`dataPath.ts`). **session file**: one session's records and totals, `sessions/<session id>.json`, written whole by the timer (`sessionFile.ts`). **emptied file**: a session file past the retention days, written over with a tombstone, since nothing can delete it. **report**: `/meter report`, the session files of the last days added up. **export**: `/meter export`, those sessions anonymized in one file a user sends on (`exportFile.ts`). **team report**: what `tools/meter/aggregate.mjs` builds from exports. **label**: the name a user's exports carry.
 
 ## Before a change is done
 
@@ -41,7 +41,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - Type-check with `tsc -p plugins/oxen-pet`.
 - Run `node tools/preview/build.mjs` and open the preview. A JS error on the page fails the change.
 - Bump `version` in `plugins/oxen-pet/.claude-plugin/plugin.json` when users should get the change.
-- For oxen-meter: `claude plugin validate plugins/oxen-meter --strict`, `claude plugin test plugins/oxen-meter`, `tsc -p plugins/oxen-meter`; bump its own `version`.
+- For oxen-meter: `claude plugin validate plugins/oxen-meter --strict`, `claude plugin test plugins/oxen-meter`, `tsc -p plugins/oxen-meter`, and `node --test tools/meter/aggregate.test.mjs`; bump its own `version`. A field added to a record or an export goes in `README.md`'s "What it records" too.
 
 ## Traps
 

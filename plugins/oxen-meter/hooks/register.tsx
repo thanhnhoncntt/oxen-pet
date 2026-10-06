@@ -3,14 +3,16 @@ import type { EngineInterface, Register, TurnStepResult } from 'claude-code'
 import { roleOf, summarize, ttlOf } from './analyze'
 import type { Role } from './analyze'
 import { codexCallOf, outcomeOf } from './codex'
-import { dataPathError, dataRootOf, dataTargetError, sessionPath } from './dataPath'
-import { projectLabel } from './project'
+import { dataPathError, dataRootOf, dataTargetError, exportPath, sessionPath } from './dataPath'
+import { exportOf, exportText } from './exportFile'
+import { projectLabel, shortHash } from './project'
 import { MAIN, addEvent, addStep, agentCallOf, newCollector, stepRecordOf, threadOf } from './record'
 import type { Collector } from './record'
 import { COLORS, filesText, fmtDur, fmtTokens, paneRows, reportText, rowsText, threadLabel } from './report'
 import { RESUME_OPTIONS, coldStartText, freshReason, resolveRecipient, resumeQuestion, resumeRisk, resumeToast } from './resume'
 import type { LiveAgent } from './report'
 import { TOMBSTONE, isExpired, readSessionText, restoreCollector, sessionText } from './sessionFile'
+import type { SessionFile } from './sessionFile'
 import type { SessionData } from './analyze'
 import { readSettings } from './settings'
 import type { Settings } from './settings'
@@ -24,6 +26,7 @@ const DAY_MS = 86400000
 const SALT_KEY = 'salt' // in $.store: the user's own salt for project hashes
 const SWEPT_KEY = 'sweptAt' // in $.store: when expired session files were last emptied
 const REPORT_DAYS = 7
+const EXPORT_DAYS = 30
 const MAX_REPORT_DAYS = 365
 
 /** The meter's state for the session: the collector, and where and when its file was written. */
@@ -105,15 +108,22 @@ async function versionOf($: EngineInterface) {
   }
 }
 
+/** The user's own salt for hashes, made the first time it is needed. */
+async function saltOf($: EngineInterface) {
+  const salt = await $.store.get(SALT_KEY)
+  if (typeof salt === 'string') {
+    return salt
+  }
+  const made = crypto.randomUUID()
+  await $.store.set(SALT_KEY, made)
+
+  return made
+}
+
 /** The session's project as the records name it, hashed with the user's own salt unless they turned hashing off. */
 async function projectOf($: EngineInterface, hash: boolean) {
   try {
-    let salt = await $.store.get(SALT_KEY)
-    if (typeof salt !== 'string') {
-      salt = crypto.randomUUID()
-      await $.store.set(SALT_KEY, salt)
-    }
-    return await projectLabel(await $.session.root(), salt as string, hash)
+    return await projectLabel(await $.session.root(), await saltOf($), hash)
   } catch {
     return ''
   }
@@ -224,18 +234,23 @@ async function rowsNow($: EngineInterface, m: Meter, s: Settings) {
   return paneRows(m.c, await liveAgents($), now, { main: summary.ttl.main.min, subagent: summary.ttl.subagent.min }, { summary, files: filesText(m, now) })
 }
 
-/** `/meter report [days]`: the session files of the last days, added up, with this session written first. */
-async function report($: EngineInterface, m: Meter, s: Settings, arg: string | undefined) {
+/** The days a `/meter report` or `/meter export` argument asks for, else `fallback`. */
+function daysOf(arg: string | undefined, fallback: number) {
   const asked = Number.parseInt(arg ?? '', 10)
-  const days = Number.isFinite(asked) && asked > 0 ? Math.min(asked, MAX_REPORT_DAYS) : REPORT_DAYS
+
+  return Number.isFinite(asked) && asked > 0 ? Math.min(asked, MAX_REPORT_DAYS) : fallback
+}
+
+/** The session files written in the last `days`, this session's first brought up to date, and how many were emptied. */
+async function readSessions($: EngineInterface, m: Meter, s: Settings, days: number) {
+  const files: SessionFile[] = []
+  let skipped = 0
   if (m.root === undefined) {
-    return `oxen-meter: ${filesText(m, 0)}`
+    return { files, skipped }
   }
   await flush($, m, s)
   const now = await $.clock.now()
   const dir = `${m.root}/sessions`
-  const sessions: SessionData[] = []
-  let skipped = 0
   for (const f of await $.fs.list(dir).catch(() => [])) {
     if (f.kind !== 'file' || f.isLink || !f.name.endsWith('.json') || now - f.mtimeMs > days * DAY_MS) {
       continue
@@ -243,13 +258,47 @@ async function report($: EngineInterface, m: Meter, s: Settings, arg: string | u
     const text = await $.fs.read(`${dir}/${f.name}`).catch(() => '')
     const file = readSessionText(text)
     if (file) {
-      sessions.push({ sid: file.sid, startedAt: file.startedAt, records: file.records, groups: file.groups })
+      files.push(file)
     } else if (text.trim() === TOMBSTONE) {
       skipped += 1
     }
   }
 
+  return { files, skipped }
+}
+
+/** `/meter report [days]`: the session files of the last days, added up. */
+async function report($: EngineInterface, m: Meter, s: Settings, arg: string | undefined) {
+  const days = daysOf(arg, REPORT_DAYS)
+  if (m.root === undefined) {
+    return `oxen-meter: ${filesText(m, 0)}`
+  }
+  const { files, skipped } = await readSessions($, m, s, days)
+  const sessions: SessionData[] = files.map(f => ({ sid: f.sid, startedAt: f.startedAt, records: f.records, groups: f.groups }))
+
   return reportText(summarize(sessions, s), { days, skipped })
+}
+
+/** `/meter export [days]`: the session files of the last days, anonymized, in one file for the team report. */
+async function exportTo($: EngineInterface, m: Meter, s: Settings, arg: string | undefined) {
+  const days = daysOf(arg, EXPORT_DAYS)
+  if (m.root === undefined) {
+    return `oxen-meter: no export written: ${filesText(m, 0)}`
+  }
+  try {
+    const { files } = await readSessions($, m, s, days)
+    const salt = await saltOf($)
+    const sessions = await Promise.all(files.map(async file => ({ file, id: await shortHash(salt, file.sid) })))
+    const day = new Date(await $.clock.now()).toISOString().slice(0, 10)
+    const settings = { mainTtl: s.mainTtl, subagentTtl: s.subagentTtl, coldTokens: s.coldTokens, outputWeight: s.outputWeight }
+    const path = exportPath(m.root, day.replace(/-/g, ''), s.userLabel)
+    await writeGuarded($, m.root, path, exportText(exportOf(sessions, { label: s.userLabel, version: m.version, day, days, settings })))
+    const n = sessions.length
+
+    return `oxen-meter: wrote ${n} session${n === 1 ? '' : 's'} of the last ${days} days to ${path}. Send that file to whoever builds the team report.`
+  } catch (err) {
+    return `oxen-meter: no export written: ${err instanceof Error ? err.message : String(err)}`
+  }
 }
 
 export const register: Register = (on, options) => {
@@ -274,7 +323,7 @@ export const register: Register = (on, options) => {
     refreshTtl()
     await sweep($, m, settings)
     try {
-      await $.command.register({ name: COMMAND, description: 'oxen-meter: open or close the prompt cache pane; /meter report [days] adds up past sessions', argumentHint: '[report [days]]', immediate: true })
+      await $.command.register({ name: COMMAND, description: 'oxen-meter: open or close the prompt cache pane; /meter report [days] adds up past sessions; /meter export [days] writes them for the team', argumentHint: '[report [days] | export [days]]', immediate: true })
     } catch {
       // Without the command the meter still records; only the pane and the report are missing.
     }
@@ -533,8 +582,11 @@ export const register: Register = (on, options) => {
     if (sub === 'report') {
       return { text: await report($, m, settings, arg) }
     }
+    if (sub === 'export') {
+      return { text: await exportTo($, m, settings, arg) }
+    }
     if (sub !== undefined && sub !== '') {
-      return { text: 'Usage: /meter opens or closes the pane; /meter report [days] adds up the sessions of the last days (7).' }
+      return { text: 'Usage: /meter opens or closes the pane; /meter report [days] adds up the sessions of the last days (7); /meter export [days] writes them, anonymized, for the team report (30).' }
     }
     if ((await $.ui.panes()).some(p => p.id === PANE_ID)) {
       await $.ui.close({ id: PANE_ID })

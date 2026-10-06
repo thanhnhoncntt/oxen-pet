@@ -1,7 +1,22 @@
 # Changelog
 
-What each version of oxen-pet adds or changes for a user. Installed copies update only when the
-version in `plugins/oxen-pet/.claude-plugin/plugin.json` changes; see README's Update section.
+What each version of oxen-pet, and of oxen-meter, adds or changes for a user. Installed copies update
+only when the version in the plugin's `.claude-plugin/plugin.json` changes; see README's Update section.
+
+## oxen-meter 1.0.0 — 2026-10-06
+
+A second plugin: the prompt cache, measured for a team. No pet, no band.
+
+- **`/meter`** opens a pane with this session's cache hit rate, tokens read, written and uncached, the
+  token equivalent, each role's TTL and how the meter knows it, cold resumes, and each live thread's cache
+  state (warm, cooling, cold) with the minutes it has left.
+- **The cold resume guard** warns (default), or asks to spawn a fresh agent instead, before Claude resumes
+  an agent whose cache likely went cold with a large context; a thread that wakes on its own past its TTL
+  gets a toast.
+- **`/meter report [days]`** adds up past sessions; **`/meter export [days]`** writes them anonymized for
+  `tools/meter/aggregate.mjs`, which builds a team report by person, agent type, model and week.
+- Records token counts, times and names only, never prompts, code, paths or commands. Files go to
+  `~/.claude/oxen-meter` through a guarded write.
 
 ## 1.1.1 — 2026-10-06
 
