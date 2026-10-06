@@ -579,11 +579,14 @@ export const register: Register = (on, options) => {
           <Box key="compact" flexDirection="column" marginLeft={1} width={e.viewport.columns - 2}>
             {compact.map(r => (
               <Box key={r.key}>
-                <Text color={r.color}>{r.label} </Text>
-                <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
-                <Text color={r.parts[0]?.color} bold wrap="truncate">
-                  {r.parts[0]?.text ?? ''}
-                </Text>
+                {/* The label, the bar and the reading keep their width; only the detail gives way at the edge. */}
+                <Box key="fixed" flexShrink={0}>
+                  <Text color={r.color}>{r.label} </Text>
+                  <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
+                  <Text color={r.parts[0]?.color} bold>
+                    {r.parts[0]?.text ?? ''}
+                  </Text>
+                </Box>
                 {r.parts.length > 1 && (
                   <Text color={r.parts[1]?.color} wrap="truncate">
                     {r.parts

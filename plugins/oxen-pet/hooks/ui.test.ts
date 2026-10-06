@@ -509,7 +509,8 @@ test('the stacked layout draws its window where it fits, and the compact HUD whe
 })
 
 test('a terminal narrower than the HUD window, such as a split pane, gets one bar a line with no window, cut rather than wrapped', async ($, on) => {
-  stubEngine(on)
+  const clock = mock.clock(on)
+  stubEngine(on, clock, { ...usage, rateLimits: [{ kind: 'five_hour', percentUsed: 38, resetsAt: new Date((await clock.now()) + 3 * 3600000).toISOString() }] } as SessionUsage)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
   const narrow = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 38, rows: 40 }, ...HINT })
@@ -517,7 +518,15 @@ test('a terminal narrower than the HUD window, such as a split pane, gets one ba
   expect(compact).toContain('"key":"compact"')
   expect(compact).toContain('♥ HP')
   expect(compact).toContain('"columns":10')
-  expect(compact).toContain('"wrap":"truncate"')
+  // The detail is the one part that may give way, cut at the edge.
+  expect(compact).toContain('"wrap":"truncate"},"children":["  3h00m"]')
+  // Only the text may give way: the label, the bar and the reading keep their width, so none of them breaks a line.
+  type Node = { type: string; props: Record<string, unknown>; children: Node[] }
+  const rows = (JSON.parse(compact) as Node).children.find(c => c.props.key === 'compact')!.children
+  for (const row of rows) {
+    const fixed = row.children[0]!
+    expect([fixed.props.key, fixed.props.flexShrink, fixed.children.map(c => c.type)]).toEqual(['fixed', 0, ['Text', 'Raster', 'Text']])
+  }
   expect(compact).not.toContain('▄▄▄')
   expect(compact).not.toContain('▀▀▀')
   await narrow.unmount()

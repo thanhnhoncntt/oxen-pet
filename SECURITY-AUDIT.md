@@ -97,7 +97,9 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
 
 `plugins/oxen-meter` is written for this repo, not forked. It measures the prompt cache from the token counts Claude
 Code reports, and keeps metadata only: token counts, times, model and tool names, agent types. It never keeps a prompt,
-an answer, a tool's input or output, a file path or a command.
+an answer, a tool's input or output, a file path or a command. It makes no network request, starts no process, and
+reads no environment variable: `$.http`, `$.process` and `$.env` appear nowhere in it, and the checks below print
+nothing for it.
 
 From `claude plugin validate plugins/oxen-meter --strict`:
 
