@@ -7,7 +7,7 @@ import { BOSS_W, bossAfter, bossAlt, bossOnScreen, drawBoss, isTestCommand, test
 import type { Boss } from './boss'
 import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
 import type { Risk } from './guard'
-import { BAR_W, HUD_WINDOW_W, cacheLeftMin, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
+import { BAR_W, HUD_WINDOW_W, cacheLeftMin, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
@@ -32,6 +32,8 @@ const SVG_PX = 4 // CSS pixels per pet pixel on the desktop
 const HUD_SVG_PX = 6 // CSS pixels per bar pixel on the desktop, so a bar is as tall as its text
 
 const GUARD_HOLD_MS = 2500 // how long the shield stays up after the answer, so it shows even when the dialog hid the band
+const NOTICE_MS = 8000 // how long the pet says the context is almost full
+const NOTICE_COLOR = '#f0506e'
 const BLOCKED = 'The user blocked this command with the oxen-pet shield. Ask them before trying it another way.'
 const UNANSWERED = 'Blocked by the oxen-pet shield: no one answered its question. To let destructive commands run unasked, turn off Shield in /plugin configure oxen-pet@oxen-pet.'
 
@@ -149,6 +151,8 @@ export const register: Register = (on, options) => {
   let guarding = 0 // risky commands waiting for the user's answer
   let shield: { result: 'blocked' | 'ran'; until: number } | undefined // the last answer, shown until `until`
   let boss: Boss | undefined
+  let alertArmed = true // the low-context alert fires once per drop under LOW_HP
+  let notice: { text: string; until: number } | undefined // what the pet says in place of its status line, until `until`
 
   // The band leaves the last column free, so a full row never wraps.
   const bandWidth = () => Math.max(BODY_W, bodyColumns - 1)
@@ -207,6 +211,14 @@ export const register: Register = (on, options) => {
       beat += 1
       if (beat % USAGE_EVERY_BEATS === 0) {
         hud = await usageOr($, t, hud)
+        if (settings.hud && hud) {
+          const alert = contextAlert(alertArmed, hud.hp)
+          alertArmed = alert.armed
+          if (alert.alert) {
+            $.ui.toast(contextAlertText(hud.hp), { timeoutMs: 10000 })
+            notice = { text: 'context almost full: /compact?', until: t + NOTICE_MS }
+          }
+        }
         $.ui.invalidate('ui.render')
       }
       if (settings.minis && beat % AGENTS_EVERY_BEATS === 0) {
@@ -429,7 +441,9 @@ export const register: Register = (on, options) => {
       const picture = compose(body, drawn.mode, drawn.ms, a.dir, hud ? mood(hud) : 'ok', views)
       const extra = views.length > MAX_MINIS ? ` (+${views.length - MAX_MINIS} minis)` : ''
       const shielded = shield !== undefined && guarding === 0 && now < shield.until ? guardLine(shield.result) : undefined
-      const line = settings.statusLine ? (shielded ?? statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode])) + extra : ''
+      const noticed = notice !== undefined && now < notice.until ? notice.text : undefined
+      const line = settings.statusLine ? (shielded ?? noticed ?? statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode])) + extra : ''
+      const tint = noticed && !shielded ? NOTICE_COLOR : lineColor(a.mode, body.look.lineColors)
       if (showsError) {
         showsError = false
         $.ui.status(undefined)
@@ -461,7 +475,7 @@ export const register: Register = (on, options) => {
               {shown > 0 && (
                 <Box key="line" flexDirection="column" width={shown}>
                   <Raster key="above" columns={shown} rows={ROWS - 2} cells={cells(textAt, 0, shown, HEIGHT - 4)} />
-                  <Text color={lineColor(a.mode, body.look.lineColors)} bold wrap="truncate">
+                  <Text color={tint} bold wrap="truncate">
                     {` › ${line}`}
                   </Text>
                   <Raster key="below" columns={shown} rows={1} cells={cells(textAt, HEIGHT - 2, shown, 2)} />
@@ -483,7 +497,7 @@ export const register: Register = (on, options) => {
               <Raster key="pet" columns={picture.w} rows={ROWS} cells={encodeCells(picture)} />
               {line && (
                 <Box marginBottom={1} marginLeft={1}>
-                  <Text color={lineColor(a.mode, body.look.lineColors)} bold>
+                  <Text color={tint} bold>
                     › {line}
                   </Text>
                 </Box>
@@ -498,7 +512,6 @@ export const register: Register = (on, options) => {
         // The desktop has no Raster: the pet, its scene and the HUD's bars draw as SVG, and the HUD sits in the band,
         // since the desktop's hint line under the prompt is its own.
         const { Box, Svg, Text } = $.ui.resolve(e)
-        const color = lineColor(a.mode, body.look.lineColors)
         const rows = settings.hud && hud ? hudRows({ ...hud, cacheMin: cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, now) }, body.look.hud) : []
         const hudBox = rows.length > 0 && (
           <Box key="hud" flexDirection="column" alignSelf="flex-start" borderStyle="round" borderColor={frameColor(body.look.hud)} paddingX={1}>
@@ -527,7 +540,7 @@ export const register: Register = (on, options) => {
             <Box flexDirection="column">
               <Svg source={encodeSvg(band)} alt={`${body.name}, ${a.mode}, in its scene`} width={width * SVG_PX} height={band.h * SVG_PX} />
               {line && (
-                <Text color={color} bold>
+                <Text color={tint} bold>
                   › {line}
                 </Text>
               )}
@@ -543,7 +556,7 @@ export const register: Register = (on, options) => {
                 <Svg source={encodeSvg(picture)} alt={`${body.name}, ${a.mode}`} width={picture.w * SVG_PX} height={HEIGHT * SVG_PX} />
               </Box>
               {line && (
-                <Text color={color} bold>
+                <Text color={tint} bold>
                   {line}
                 </Text>
               )}

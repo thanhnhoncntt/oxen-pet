@@ -13,7 +13,7 @@ const usage: SessionUsage = { startedAt: 0, context: { window: 200000, percent: 
  * Answers what the mod asks of Claude Code, and draws Claude Code's own hint line as one Text. Returns the mod's
  * store, kept in memory. A test that moves the clock makes it with `mock.clock` and passes it in.
  */
-function stubEngine(on: On, clock?: MockClock) {
+function stubEngine(on: On, clock?: MockClock, use: SessionUsage = usage) {
   const store = new Map<string, unknown>()
   if (!clock) {
     mock.clock(on)
@@ -28,12 +28,16 @@ function stubEngine(on: On, clock?: MockClock) {
     return { value: undefined }
   })
   on('session.start', (_$, e) => e)
-  on('session.usage', () => ({ value: usage }))
+  on('session.usage', () => ({ value: use }))
   on('agent.list', () => ({ value: [] }))
   on('fs.read', () => ({ value: JSON.stringify(BLOCK) }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['engine hint'] }))
   on('ui.status', () => ({ value: undefined }))
-  on('ui.toast', () => ({ value: undefined }))
+  // The toasts shown, in order, under `toasts`.
+  on('ui.toast', (_$, e) => {
+    store.set('toasts', [...((store.get('toasts') as string[] | undefined) ?? []), e.text])
+    return { value: undefined }
+  })
   on('fs.write', (_$, e) => {
     store.set(`file:${e.path}`, e.text)
     return { value: undefined }
@@ -391,4 +395,17 @@ test('in a scene the boss stands on the ground at the right of the band', async 
   const after = await bandText($)
   expect(after).not.toEqual(before)
   expect(await bandText($, 'desktop')).toContain('#7c3aed')
+})
+
+test('as the context runs low the pet says so and a toast suggests /compact, once', async ($, on) => {
+  const clock = mock.clock(on)
+  const store = stubEngine(on, clock, { ...usage, context: { window: 200000, percent: 85 } })
+  const toasts = () => (store.get('toasts') as string[] | undefined) ?? []
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await clock.advance(2000)
+  expect(toasts().filter(t => t.includes('context left'))).toHaveLength(1)
+  expect(await bandText($)).toContain('context almost full')
+  await clock.advance(10000)
+  expect(toasts().filter(t => t.includes('context left'))).toHaveLength(1)
+  expect(await bandText($)).not.toContain('context almost full')
 })

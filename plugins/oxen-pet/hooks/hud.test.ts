@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
 
-import { BAR_W, DETAIL_COLOR, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
+import { BAR_W, DETAIL_COLOR, LOW_HP, contextAlert, contextAlertText, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
 
 const usage = (over: Partial<SessionUsage> = {}): SessionUsage => ({
   startedAt: 0,
@@ -47,6 +47,21 @@ test('the rows name every stat, and HP warns when context runs out', () => {
   const text = (r: (typeof rows)[number]) => r.label + r.parts.map(p => p.text).join('')
   expect(rows.map(text)).toEqual(['♥ HP 86%', '✦ MP 62%  reset in 2h13m  18% spare', '◆ ST 64%  reset in 3d2h  20% spare'])
   expect(text(hudRows({ hp: 8 })[0]!)).toBe('⚠ HP 8%  /compact')
+  expect(text(hudRows({ hp: 19 })[0]!)).toBe('⚠ HP 19%  /compact')
+  expect(text(hudRows({ hp: LOW_HP })[0]!)).toBe(`♥ HP ${LOW_HP}%`)
+})
+
+test('the low-context alert fires once as HP drops under the line, and again only after HP climbs well back', () => {
+  let armed = true
+  const seen: boolean[] = []
+  for (const hp of [40, 25, 19, 15, 12, 25, 29, 60, 18, 10]) {
+    const next = contextAlert(armed, hp)
+    seen.push(next.alert)
+    armed = next.armed
+  }
+  expect(seen).toEqual([false, false, true, false, false, false, false, false, true, false])
+  expect(contextAlertText(18)).toContain('18% of the context left')
+  expect(contextAlertText(18)).toContain('/compact')
 })
 
 test('the reading is bold in its bar\'s color and the details are grey', () => {

@@ -25,6 +25,22 @@ const FORECAST_AFTER_MIN = 15
 
 export type Mood = 'ok' | 'worried' | 'critical' | 'tired'
 
+/** HP under this warns: `⚠ HP`, `/compact` beside the reading, and the low-context alert. */
+export const LOW_HP = 20
+const REARM_HP = 30 // HP must climb back to this, by a /compact or a new session, before the alert can fire again
+
+/** Whether the low-context alert fires at `hp`, and whether it is armed after: it fires once per drop under LOW_HP. */
+export function contextAlert(armed: boolean, hp: number) {
+  if (armed && hp < LOW_HP) {
+    return { alert: true, armed: false }
+  }
+
+  return { alert: false, armed: armed || hp >= REARM_HP }
+}
+
+/** The toast the low-context alert shows. */
+export const contextAlertText = (hp: number) => `oxen-pet: ${hp}% of the context left. Run /compact now, or hand off to a fresh session.`
+
 /** A pet's look for one bar: its label, the label's color, and the fill while the bar is healthy. */
 export type BarLook = { label?: string; color?: string; fill?: [string, string] }
 /** A pet's look for the HUD: the frame's color, and each bar's look, or false to hide it. */
@@ -192,11 +208,11 @@ export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
   rows.push({
     key: 'hp',
     look: look.hp,
-    label: h.hp < 10 ? '⚠ HP' : '♥ HP',
+    label: h.hp < LOW_HP ? '⚠ HP' : '♥ HP',
     color: '#f87171',
     pct: h.hp,
     bar: barCanvas(h.hp, hpFill),
-    parts: [reading(`${h.hp}%`, hpFill), ...(h.hp < 10 ? [{ ...reading('/compact', RED), text: '  /compact' }] : []), ...detail([cache(h.cacheMin)])],
+    parts: [reading(`${h.hp}%`, hpFill), ...(h.hp < LOW_HP ? [{ ...reading('/compact', RED), text: '  /compact' }] : []), ...detail([cache(h.cacheMin)])],
   })
   if (h.mp !== undefined) {
     const mpFill = h.mp < 15 ? RED : pairOf(look.mp ? look.mp.fill : undefined, BLUE)
