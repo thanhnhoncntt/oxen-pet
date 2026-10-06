@@ -3,6 +3,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Anim, Mode } from '../types'
 import { TICK_MS, fail, leapClipMs, step } from './anim'
+import { BOSS_W, bossAfter, bossAlt, bossOnScreen, drawBoss, isTestCommand, testOutcome } from './boss'
+import type { Boss } from './boss'
 import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
 import type { Risk } from './guard'
 import { BAR_W, HUD_WINDOW_W, cacheLeftMin, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
@@ -13,7 +15,7 @@ import { animate, readTheme, restingFrame } from './theme'
 import { previewPage } from './preview'
 import { previewPathError, previewTargetError } from './previewPath'
 import { readSettings } from './settings'
-import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, trailWidth } from './pixels'
+import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, overlay, trailWidth } from './pixels'
 import type { Body } from './pixels'
 import { DESKTOP_BAND_W, GROUND_H, drawBand, layScene, obstacleSpans } from './scene'
 import type { SceneLayout } from './scene'
@@ -146,6 +148,7 @@ export const register: Register = (on, options) => {
   let layoutOf: Body | undefined
   let guarding = 0 // risky commands waiting for the user's answer
   let shield: { result: 'blocked' | 'ran'; until: number } | undefined // the last answer, shown until `until`
+  let boss: Boss | undefined
 
   // The band leaves the last column free, so a full row never wraps.
   const bandWidth = () => Math.max(BODY_W, bodyColumns - 1)
@@ -211,7 +214,9 @@ export const register: Register = (on, options) => {
       }
 
       const trail = trailWidth(minis.length)
-      const room = Math.max(0, bodyColumns - BODY_W - trail - STATUS_ROOM)
+      // A boss stands at the right of the band, so the running pet turns before it.
+      const bossRoom = settings.boss && bossOnScreen(boss, t) ? BOSS_W + 2 : 0
+      const room = Math.max(0, bodyColumns - BODY_W - trail - STATUS_ROOM - bossRoom)
       const scene = body && sceneLayout(body)
       const obstacles = scene ? obstacleSpans(scene) : []
       const isGuarding = guarding > 0 || (shield !== undefined && t < shield.until)
@@ -297,6 +302,16 @@ export const register: Register = (on, options) => {
     }
     if ('deny' in result || ('isError' in result && result.isError)) {
       await update($, anim, a => fail(a, lastToolAt))
+    }
+    if (settings.boss && e.tool === 'Bash' && typeof input.command === 'string' && isTestCommand(input.command)) {
+      const before = bossOnScreen(boss, lastToolAt)
+      boss = bossAfter(before, testOutcome(result), lastToolAt)
+      // The pet cheers over a defeated boss.
+      if (before?.defeatedAt === undefined && boss?.defeatedAt !== undefined) {
+        const at = lastToolAt
+        await update($, anim, a => ({ ...a, mode: 'cheer' as const, since: at }))
+      }
+      $.ui.invalidate('ui.render')
     }
 
     return result
@@ -421,12 +436,18 @@ export const register: Register = (on, options) => {
       }
 
       const scene = sceneLayout(body)
+      const shownBoss = settings.boss ? bossOnScreen(boss, now) : undefined
+      const bossArt = shownBoss && drawBoss(shownBoss, now)
+      const bossW = bossArt ? BOSS_W + 1 : 0
       if (e.surface === 'terminal' && scene && body.scene) {
         const { Box, Raster, Text } = $.ui.resolve(e)
         const width = scene.width
         const textW = line ? lineWidth(line) + 3 : 0
-        const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w - textW))
+        const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w - textW - bossW))
         const band = drawBand(body, body.scene, scene, picture, left, now)
+        if (bossArt) {
+          overlay(band, bossArt, width - bossW)
+        }
         const cells = (x: number, y: number, w: number, h: number) => encodeCells(crop(band, x, y, w, h))
         // The status line cuts a hole in the band; the band shows above, below, and right of it.
         const textAt = left + picture.w
@@ -454,10 +475,10 @@ export const register: Register = (on, options) => {
       }
       if (e.surface === 'terminal') {
         const { Box, Raster, Text } = $.ui.resolve(e)
-        const room = Math.max(0, bodyColumns - picture.w - line.length - 4)
+        const room = Math.max(0, bodyColumns - picture.w - line.length - 4 - bossW)
 
         return (
-          <Box height={ROWS}>
+          <Box height={ROWS} width={bandWidth()}>
             <Box marginLeft={Math.min(Math.round(a.x), room)} alignItems="flex-end">
               <Raster key="pet" columns={picture.w} rows={ROWS} cells={encodeCells(picture)} />
               {line && (
@@ -468,6 +489,8 @@ export const register: Register = (on, options) => {
                 </Box>
               )}
             </Box>
+            {bossArt && <Box flexGrow={1} />}
+            {bossArt && <Raster key="boss" columns={BOSS_W} rows={ROWS} cells={encodeCells(bossArt)} />}
           </Box>
         )
       }
@@ -494,8 +517,11 @@ export const register: Register = (on, options) => {
         )
         if (scene && body.scene) {
           const width = Math.min(scene.width, DESKTOP_BAND_W)
-          const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w))
+          const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w - bossW))
           const band = crop(drawBand(body, body.scene, scene, picture, left, now), 0, 0, width, HEIGHT + GROUND_H)
+          if (bossArt) {
+            overlay(band, bossArt, width - bossW)
+          }
 
           return (
             <Box flexDirection="column">
@@ -521,6 +547,8 @@ export const register: Register = (on, options) => {
                   {line}
                 </Text>
               )}
+              {shownBoss && bossArt && <Box flexGrow={1} />}
+              {shownBoss && bossArt && <Svg key="boss" source={encodeSvg(bossArt)} alt={bossAlt(shownBoss)} width={BOSS_W * SVG_PX} height={HEIGHT * SVG_PX} />}
             </Box>
             {hudBox}
           </Box>

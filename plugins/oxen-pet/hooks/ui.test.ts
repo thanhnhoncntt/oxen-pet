@@ -335,3 +335,60 @@ test('a query about a destructive command never opens a dialog', async ($, on) =
   expect((await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'toolu_2' } as never)).decision).toBe('allow')
   expect(asked).toHaveLength(0)
 })
+
+/** Makes each Bash call answer as a test run that fails while `failing.now` is true, and passes after. */
+function stubTests(on: Parameters<TestBody>[1]) {
+  const failing = { now: true }
+  on('tool.call', { tool: 'Bash' }, () => (failing.now ? { isError: true, result: 'Exit code 1', text: 'Exit code 1' } : { result: { stdout: 'ok', stderr: '', interrupted: false } }) as never)
+  return failing
+}
+
+async function bandText($: Parameters<TestBody>[0], surface: 'terminal' | 'desktop' = 'terminal') {
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface, ...BAND })
+  const tree = JSON.stringify(await band.drawn())
+  await band.unmount()
+  return tree
+}
+
+test('a failed test run brings the boss into the band, and the next passing run defeats it', async ($, on) => {
+  const clock = mock.clock(on)
+  stubEngine(on, clock)
+  const failing = stubTests(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  expect(await bandText($)).not.toContain('"key":"boss"')
+
+  await $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+  expect(await bandText($)).toContain('"key":"boss"')
+  expect(await bandText($, 'desktop')).toContain('"alt":"a bug boss, 1 hit"')
+
+  // Another command that fails is not a test run.
+  await $.tool.call({ tool: 'Bash', command: 'npm run build' } as never)
+  expect(await bandText($, 'desktop')).toContain('1 hit')
+
+  failing.now = false
+  await $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+  expect(await bandText($)).toContain('"key":"boss"')
+  await clock.advance(2000)
+  expect(await bandText($)).not.toContain('"key":"boss"')
+})
+
+test('the boss stays away when turned off', { options: { boss: false } }, async ($, on) => {
+  stubEngine(on)
+  stubTests(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+  expect(await bandText($)).not.toContain('"key":"boss"')
+})
+
+test('in a scene the boss stands on the ground at the right of the band', async ($, on) => {
+  stubEngine(on)
+  stubTests(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const scene = { ground: ['gg'], obstacles: [['gg', 'gg']] }
+  await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: { ...BLOCK, palette: { ...BLOCK.palette, g: '#888888' }, scene } })
+  const before = await bandText($)
+  await $.tool.call({ tool: 'Bash', command: 'pytest' } as never)
+  const after = await bandText($)
+  expect(after).not.toEqual(before)
+  expect(await bandText($, 'desktop')).toContain('#7c3aed')
+})
