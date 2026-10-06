@@ -409,3 +409,56 @@ test('as the context runs low the pet says so and a toast suggests /compact, onc
   expect(toasts().filter(t => t.includes('context left'))).toHaveLength(1)
   expect(await bandText($)).not.toContain('context almost full')
 })
+
+const PANE = { component: 'Pane', props: { title: 'oxen-pet', isFocused: false, bodyColumns: 70, placement: 'inline', scroll: { offset: 0, bodyRows: 12 }, view: {} } } as const
+
+/** Answers $.ui.open as a surface that places every pane, and $.ui.panes with the panes open. Returns the ids opened. */
+function stubPanes(on: Parameters<TestBody>[1]) {
+  const open: string[] = []
+  on('ui.open', (_$, e) => {
+    open.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('ui.close', (_$, e) => {
+    open.splice(open.indexOf(e.id), 1)
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({ value: open.map(id => ({ id, title: id, isShown: true, isFocused: false, isPlaced: true })) }) as never)
+  on('command.register', (_$, e) => ({ value: { command: e.name } }))
+  return open
+}
+
+test('/pet opens a pane with what the session did, and closes it when run again', async ($, on) => {
+  stubEngine(on)
+  const open = stubPanes(on)
+  stubTests(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' } as never)
+
+  await $.command.run({ command: 'pet', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
+  expect(open).toEqual(['pet'])
+  const pane = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', requestId: 'pet', ...PANE })
+  const tree = JSON.stringify(await pane.drawn())
+  for (const part of ['Session', '1 call: 1 bash · 1 failed', '1 run: 0 passed · 1 failed', '"key":"face"']) {
+    expect(tree).toContain(part)
+  }
+  await pane.unmount()
+
+  await $.command.run({ command: 'pet', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } } as never)
+  expect(open).toEqual([])
+})
+
+test('the /pet pane draws its pet as an SVG where there is no Raster, and leaves other panes alone', async ($, on) => {
+  stubEngine(on)
+  stubPanes(on)
+  await $.session.start({ cwd: '/tmp', surface: 'mobile', isInteractive: true })
+  const pane = await $.ui.mount({ plugin: 'oxen-pet', surface: 'mobile', requestId: 'pet', ...PANE })
+  const tree = JSON.stringify(await pane.drawn())
+  expect(tree).toContain('"type":"Svg"')
+  expect(tree).not.toContain('Raster')
+  await pane.unmount()
+
+  const other = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', requestId: 'someone-else', ...PANE })
+  expect(JSON.stringify(await other.drawn())).toContain('engine hint')
+  await other.unmount()
+})

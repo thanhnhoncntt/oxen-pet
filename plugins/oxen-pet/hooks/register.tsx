@@ -7,7 +7,8 @@ import { BOSS_W, bossAfter, bossAlt, bossOnScreen, drawBoss, isTestCommand, test
 import type { Boss } from './boss'
 import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
 import type { Risk } from './guard'
-import { BAR_W, HUD_WINDOW_W, cacheLeftMin, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
+import { newStats, noteMp, recordShield, recordTest, recordTool, recordTurn, statsRows } from './stats'
+import { BAR_W, DETAIL_COLOR, HUD_WINDOW_W, cacheLeftMin, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
@@ -15,7 +16,7 @@ import { animate, readTheme, restingFrame } from './theme'
 import { previewPage } from './preview'
 import { previewPathError, previewTargetError } from './previewPath'
 import { readSettings } from './settings'
-import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, overlay, trailWidth } from './pixels'
+import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, composeFace, crop, encodeCells, encodeSvg, overlay, trailWidth } from './pixels'
 import type { Body } from './pixels'
 import { DESKTOP_BAND_W, GROUND_H, drawBand, layScene, obstacleSpans } from './scene'
 import type { SceneLayout } from './scene'
@@ -43,6 +44,8 @@ const OWN_TOOLS = 'mcp__oxen-pet__'
 const SET_THEME = 'mcp__oxen-pet__set_theme'
 const PREVIEW_THEME = 'mcp__oxen-pet__preview_theme'
 const GET_THEME = 'mcp__oxen-pet__get_theme'
+const PET_COMMAND = 'pet'
+const PANE_ID = 'pet'
 
 const anim = atom({ plugin: 'oxen-pet', key: 'anim' } as const, {
   mode: 'idle',
@@ -153,6 +156,7 @@ export const register: Register = (on, options) => {
   let boss: Boss | undefined
   let alertArmed = true // the low-context alert fires once per drop under LOW_HP
   let notice: { text: string; until: number } | undefined // what the pet says in place of its status line, until `until`
+  let stats = newStats(0)
 
   // The band leaves the last column free, so a full row never wraps.
   const bandWidth = () => Math.max(BODY_W, bodyColumns - 1)
@@ -173,6 +177,7 @@ export const register: Register = (on, options) => {
     await update($, anim, () => ({ mode: 'idle', since: now, x: 0, dir: 1, tick: 0, target: '', working: false }))
     hud = await usageOr($, now, undefined)
     lastTurnEndAt = undefined
+    stats = newStats(now)
     try {
       await $.tool.register({
         name: 'preview_theme',
@@ -205,12 +210,20 @@ export const register: Register = (on, options) => {
     } catch {
       // Without the tools the pet still draws; only changing the theme is missing.
     }
+    try {
+      await $.command.register({ name: PET_COMMAND, description: 'oxen-pet: open or close the pane with what this session did', immediate: true })
+    } catch {
+      // Without the command the pet and the HUD still draw; only the stats pane is missing.
+    }
 
     $.clock.every(TICK_MS, async () => {
       const t = await $.clock.now()
       beat += 1
       if (beat % USAGE_EVERY_BEATS === 0) {
         hud = await usageOr($, t, hud)
+        if (hud?.mp !== undefined) {
+          stats = noteMp(stats, hud.mp, t)
+        }
         if (settings.hud && hud) {
           const alert = contextAlert(alertArmed, hud.hp)
           alertArmed = alert.armed
@@ -248,6 +261,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.agentId === undefined) {
       lastTurnEndAt = await $.clock.now()
+      stats = recordTurn(stats)
       $.ui.invalidate('ui.render')
     }
 
@@ -283,6 +297,7 @@ export const register: Register = (on, options) => {
       const answer = await $.ui.ask(question, { header: 'Shield', options: [GUARD_OPTIONS.block, GUARD_OPTIONS.run] }).catch(() => undefined)
       const ran = answer === GUARD_OPTIONS.run
       shield = { result: ran ? 'ran' : 'blocked', until: (await $.clock.now()) + GUARD_HOLD_MS }
+      stats = recordShield(stats, shield.result)
       if (ran) {
         return { decision: 'allow' as const, reason: 'The user let it run when the oxen-pet shield asked.' }
       }
@@ -312,14 +327,19 @@ export const register: Register = (on, options) => {
       activeTools = Math.max(0, activeTools - 1)
       lastToolAt = await $.clock.now()
     }
-    if ('deny' in result || ('isError' in result && result.isError)) {
+    const failed = 'deny' in result || ('isError' in result && result.isError === true)
+    if (failed) {
       await update($, anim, a => fail(a, lastToolAt))
     }
-    if (settings.boss && e.tool === 'Bash' && typeof input.command === 'string' && isTestCommand(input.command)) {
-      const before = bossOnScreen(boss, lastToolAt)
-      boss = bossAfter(before, testOutcome(result), lastToolAt)
+    stats = recordTool(stats, e.tool, input, failed)
+    const outcome = e.tool === 'Bash' && typeof input.command === 'string' && isTestCommand(input.command) ? testOutcome(result) : undefined
+    if (outcome) {
+      const before = settings.boss ? bossOnScreen(boss, lastToolAt) : undefined
+      boss = settings.boss ? bossAfter(before, outcome, lastToolAt) : undefined
+      const beat = before !== undefined && before.defeatedAt === undefined && boss?.defeatedAt !== undefined
+      stats = recordTest(stats, outcome, beat)
       // The pet cheers over a defeated boss.
-      if (before?.defeatedAt === undefined && boss?.defeatedAt !== undefined) {
+      if (beat) {
         const at = lastToolAt
         await update($, anim, a => ({ ...a, mode: 'cheer' as const, since: at }))
       }
@@ -377,6 +397,68 @@ export const register: Register = (on, options) => {
     $.ui.invalidate('ui.render')
 
     return { result: `The ${read.theme.name} theme is on screen now, for this session and later ones.\n\n${themeReport(body, read.notes)}` }
+  })
+
+  // /pet opens the pane with what the session did, and closes it when it is open.
+  on('command.run', { command: PET_COMMAND }, async $ => {
+    if ((await $.ui.panes()).some(p => p.id === PANE_ID)) {
+      await $.ui.close({ id: PANE_ID })
+      return {}
+    }
+    const opened = await $.ui.open({ id: PANE_ID, title: 'oxen-pet', closeOnEscape: true, rows: 10 })
+    if (opened.isPlaced) {
+      return {}
+    }
+    // Where no pane shows, the stats print as the command's output.
+    const rows = statsRows(stats, await $.clock.now(), hud, settings.targets)
+
+    return { text: rows.map(r => `${r.label}: ${r.value}`).join('\n') }
+  })
+
+  on('ui.render', { component: 'Pane' }, async ($, e, next) => {
+    if (e.requestId !== PANE_ID) {
+      return next(e)
+    }
+    if (!body) {
+      body = await keptBody($)
+    }
+    const now = await $.clock.now()
+    const rows = statsRows(stats, now, hud, settings.targets)
+    const labelW = Math.max(...rows.map(r => r.label.length))
+    const face = composeFace(body, stats.bosses > 0 ? 'star' : 'happy', now)
+    const frame = frameColor(body.look.hud)
+    if (e.surface === 'terminal') {
+      const { Box, Raster, Text } = $.ui.resolve(e)
+
+      return (
+        <Box gap={2}>
+          <Raster key="face" columns={BODY_W} rows={ROWS} cells={encodeCells(face)} />
+          <Box flexDirection="column">
+            {rows.map(r => (
+              <Box key={r.label}>
+                <Text color={frame} bold>{`${r.label.padEnd(labelW)}  `}</Text>
+                <Text color={DETAIL_COLOR}>{r.value}</Text>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )
+    }
+    const { Box, Svg, Text } = $.ui.resolve(e)
+
+    return (
+      <Box gap={2}>
+        <Svg key="face" source={encodeSvg(face)} alt={`${body.name}, happy`} width={BODY_W * SVG_PX} height={HEIGHT * SVG_PX} />
+        <Box flexDirection="column">
+          {rows.map(r => (
+            <Box key={r.label}>
+              <Text color={frame} bold>{`${r.label.padEnd(labelW)}  `}</Text>
+              <Text color={DETAIL_COLOR}>{r.value}</Text>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
