@@ -292,13 +292,7 @@
     "cheer": "#9b7fe0"
   },
   "hud": {
-    "frame": "#e65f43",
-    "hp": {
-      "fill": [
-        "#b78038",
-        "#f7d67a"
-      ]
-    }
+    "frame": "#e65f43"
   },
   "scene": {
     "ground": [

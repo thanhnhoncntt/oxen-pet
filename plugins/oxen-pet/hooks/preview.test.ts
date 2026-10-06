@@ -23,3 +23,14 @@ test('the preview escapes the name and lists the notes', () => {
   expect(page).toContain('<h1>Tom &#60;&#38;&#62; Jerry</h1>')
   expect(page).toContain('<li>A &#60;b&#62; note</li>')
 })
+
+test('each HUD row in the preview has both sides of the window, as the terminal draws it', () => {
+  const page = previewPage(body!, [])
+  const huds = [...page.matchAll(/<pre class="hud"[^>]*>([\s\S]*?)<\/pre>/g)].map(m => m[1] as string)
+  expect(huds.length).toBeGreaterThan(0)
+  for (const hud of huds) {
+    for (const line of hud.split('\n').slice(1, -1)) {
+      expect(line.split('█').length - 1).toBe(2)
+    }
+  }
+})

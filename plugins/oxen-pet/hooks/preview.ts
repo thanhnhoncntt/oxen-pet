@@ -135,7 +135,12 @@ export function previewPage(body: Body, notes: string[]): string {
     const inside = rows.length === 0
       ? '<p>The pet hides every bar, so the HUD does not show.</p>'
       : `<pre class="hud" style="color: ${frameColor(body.look.hud)}">${escapeHtml(edges.top)}\n${rows
-          .map(r => `${edges.side} <span style="color: ${r.color}">${escapeHtml(r.label)} </span><canvas class="bar" data-cells="${r.cells}"></canvas>${r.parts.map(p => `<span style="color: ${p.color}${p.bold ? '; font-weight: bold' : ''}">${escapeHtml(p.text)}</span>`).join('')}`)
+          .map(r => {
+            // Padded to the window's inside, so the right side lands where the terminal draws it.
+            const used = 1 + [...r.label].length + 1 + r.bar.w + r.parts.reduce((n, p) => n + [...p.text].length, 0)
+            const pad = ' '.repeat(Math.max(0, HUD_WINDOW_W - 2 - used))
+            return `${edges.side} <span style="color: ${r.color}">${escapeHtml(r.label)} </span><canvas class="bar" data-cells="${r.cells}"></canvas>${r.parts.map(p => `<span style="color: ${p.color}${p.bold ? '; font-weight: bold' : ''}">${escapeHtml(p.text)}</span>`).join('')}${pad}${edges.side}`
+          })
           .join('\n')}\n${escapeHtml(edges.bottom)}</pre>`
     return `<figure class="wide"><figcaption><b>${label}</b></figcaption>${inside}</figure>`
   }).join('')
