@@ -23,6 +23,7 @@ Name the parts the request touches:
 | --- | --- | --- |
 | A new mascot, a recolor, new eyes or cheeks | the sprite, `palette`, `eyes`, `cheeks` | [Fields](FORMAT.md#theme-format), [Size](FORMAT.md#size), [Eyes](FORMAT.md#eyes) |
 | An effect in a mode: the book, the globe, the terminal, the question mark | `props` | [Props](FORMAT.md#props), [Modes](FORMAT.md#modes) |
+| How the pet itself looks in a mode: a power-up, a color change, another shape | `forms` | [Forms](FORMAT.md#forms) |
 | What a running subagent looks like | `mini`, `miniSprite` | [Minis](FORMAT.md#minis) |
 | The words beside the pet, or their color | `lines`, `lineColors` | [Status lines](FORMAT.md#status-lines) |
 | The HUD's frame, labels, colors, fills, or a hidden bar | `hud` | [HUD](FORMAT.md#hud) |

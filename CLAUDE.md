@@ -5,6 +5,7 @@ oxen-pet is a hardened fork of pixel-pet (see `SECURITY-AUDIT.md`), a Claude Cod
 Use these words in code, comments, docs, and UI, and no others for the same thing.
 
 - **pet**: what the mod draws. **slime**: the default pet, and its theme. **theme**: one JSON object with a pet's sprite and everything else it changes (props, minis, status lines, HUD, scene), in the format `skills/oxen-pet/FORMAT.md` documents; a theme file holds one. **sprite**: the one still drawing in a theme. **clip**: a loop of frames, one of stand, run, jump, think, cheer. **frame**: one picture of a clip, made from the sprite. **body**: a pet made ready to draw by `animate`, with every clip.
+- **form**: how the pet looks while one mode plays, from the theme's `forms`: its own sprite fields over the pet's, with every clip made from them.
 - **mode**: what the pet is acting out (`idle`, `read`, `bash`, ...). One mode has one set of status lines and one line color. User-facing text calls a mode's animation a **motion**. **face**: one eye expression, one of the 18 in `pixels.ts`.
 - **status line**: the text beside the pet. **band**: the `AbovePrompt` area the pet and status line sit in. **target**: what a tool call works on (a file, pattern, command, host, or search query), which the status line names.
 - **mini**: the small drop for one running subagent, in the pet's `mini` colors. **trail**: the minis behind the pet.

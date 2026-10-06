@@ -2,7 +2,7 @@
 
 A theme is one JSON object: the pet's sprite and everything else it changes. The `preview_theme` and `set_theme` tools take it as `theme`, `get_theme` returns it, and a theme file (`<name>.theme.json`) holds the same object. Only `sprite` is required. The mod draws whatever else it gets, repairs what it can, and returns notes on what it did (see [Notes](#notes)). Unknown fields are ignored.
 
-Two example pets ship with the plugin: [`assets/slime.json`](../../assets/slime.json) faces the viewer, and [`assets/duck.json`](../../assets/duck.json) faces left, beak first. Both set only the sprite fields. [`assets/alien.json`](../../assets/alien.json) sets every field in this file: props (including `think`), `miniSprite`, `lines`, `lineColors`, `hud`, and `scene`.
+Two example pets ship with the plugin: [`assets/slime.json`](../../assets/slime.json) faces the viewer, and [`assets/duck.json`](../../assets/duck.json) faces left, beak first. Both set only the sprite fields. [`assets/alien.json`](../../assets/alien.json) sets every field in this file: props (including `think`), `miniSprite`, `lines`, `lineColors`, `hud`, `scene`, and `forms`.
 
 | Field | Required | What it is |
 | --- | --- | --- |
@@ -22,6 +22,7 @@ Two example pets ship with the plugin: [`assets/slime.json`](../../assets/slime.
 | `lineColors` | | `{ "<mode>": "#rrggbb" }`: the status line's color in a mode. See [Status lines](#status-lines). |
 | `hud` | | The HUD's look: its frame, and each bar's label, color, and fill. See [HUD](#hud). |
 | `scene` | | The band's background: a ground, a sky drawing, obstacles the pet leaps while it runs, and decor. See [Scene](#scene). |
+| `forms` | | `{ "<mode>": form }`: how the pet looks while a mode plays, such as a powered-up form when it cheers. See [Forms](#forms). |
 
 ## Colors
 
@@ -81,7 +82,7 @@ Keep important features off the sprite's right edge, where these drawings land. 
 
 ## Modes
 
-A mode is what the pet is acting out. Props, status lines, and line colors are set per mode.
+A mode is what the pet is acting out. Props, forms, status lines, and line colors are set per mode.
 
 | Mode | Plays when | The mod's prop | `{}` in a line is |
 | --- | --- | --- | --- |
@@ -118,6 +119,26 @@ Here `web` plays two frames of a star, drawn in the palette's `y`, and `think` d
 - Any mode except `run` may have a prop. The pet's own prop replaces the mod's for that mode. `false` leaves the mode without a prop, even one the mod gives.
 - `think` has no mod prop. The question mark and thought trail are the mod's drawing for it. A `think` prop replaces them, and `"think": false` removes them.
 - Like the sprite, a prop or `miniSprite` draws `*`, `+`, and `@` clear: the mod keeps them for cheeks, sparkles, and pupils.
+
+## Forms
+
+A form changes how the pet itself looks while one mode plays: a new color, a new shape, or both. `forms` maps a mode to its form:
+
+```json
+"forms": {
+  "bash": { "palette": { "s": "#f49ab0" } },
+  "cheer": { "sprite": ["..ww..", ".wwww.", "wwwwww"], "palette": { "w": "#f5f3ff" }, "eyes": [[0, 1], [3, 1]] }
+}
+```
+
+Here the pet turns pink while it runs a command, and takes another shape when a turn ends.
+
+- A form takes the sprite fields: `sprite`, `palette`, `eyes`, `eyeColor`, `cheeks`, `cheekColor`, `outline`, and `scale`. A field it leaves out is the pet's own.
+- `palette` adds to the pet's palette: a form that only recolors names just the characters it changes.
+- A form's sprite fits the canvas like the pet's, and the mod makes every clip of it: stand, run, jump, think, and cheer, so it moves like the pet.
+- Any mode may have a form, `run` and `jump` included. A leap plays the `jump` form.
+- Props, minis, status lines, the HUD, and the scene stay the theme's. A prop of a mode with a form draws in the form's palette.
+- The preview shows each mode in its form.
 
 ## Minis
 

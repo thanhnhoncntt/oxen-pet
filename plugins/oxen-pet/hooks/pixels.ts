@@ -18,6 +18,7 @@ export type Body = {
   look: Look
   scene?: Scene
   clips: Record<Clip, { fps: number; frames: BodyFrame[] }>
+  forms?: Partial<Record<Mode, Pick<Body, 'palette' | 'eye' | 'clips'>>> // the pet as it looks in a mode with a form of its own
 }
 /** What a pet changes beyond its drawing: its status lines, their colors, and the HUD. */
 export type Look = { lines: Partial<Record<Mode, string[]>>; lineColors: Partial<Record<Mode, string>>; hud: HudLook }
@@ -441,7 +442,7 @@ function effects(c: Canvas, mode: Mode, clipIndex: number, t: number, ownThink: 
 }
 
 /** How the prop of `mode` draws: the pet's own, the mod's, or none. */
-function propOf(body: Body, mode: Mode): ((c: Canvas, t: number) => void) | undefined {
+function propOf(body: Body, mode: Mode, palette: Record<string, number>): ((c: Canvas, t: number) => void) | undefined {
   const own = body.props[mode]
   if (own === null) {
     return undefined
@@ -449,7 +450,7 @@ function propOf(body: Body, mode: Mode): ((c: Canvas, t: number) => void) | unde
   if (own) {
     return (c, t) => {
       const rows = own[frameIndex(own.length, PROP_FPS, t, true)] as string[]
-      stamp(c, 0, HEIGHT - rows.length, rows, body.palette)
+      stamp(c, 0, HEIGHT - rows.length, rows, palette)
     }
   }
 
@@ -462,23 +463,25 @@ export function compose(body: Body, mode: Mode, elapsedMs: number, dir: 1 | -1, 
   // The expressions index their sequences by time; a negative time would index past the start.
   elapsedMs = Math.max(0, elapsedMs)
   const spec = MODES[mode]
-  const clip = body.clips[spec.clip]
+  // A mode with a form draws the form's frames in the form's colors; everything else stays the pet's.
+  const look = body.forms?.[mode] ?? body
+  const clip = look.clips[spec.clip]
   const isLoop = spec.once === undefined
   const index = frameIndex(clip.frames.length, spec.fps ?? clip.fps, elapsedMs, isLoop)
   const frame = clip.frames[index] as BodyFrame
   const pet = canvas(BODY_W, HEIGHT)
 
-  stamp(pet, 0, 0, frame.g, body.palette)
+  stamp(pet, 0, 0, frame.g, look.palette)
 
   const eyes = (EXPRESSIONS[expressionName(mode, elapsedMs, frame.e, mood)] as (t: number) => Eyes)(elapsedMs)
   const shift = mode === 'run' ? 1 : 0
-  stamp(pet, frame.l[0] + shift, frame.l[1], eyes.l, body.eye)
-  stamp(pet, frame.r[0] + shift, frame.r[1], eyes.r, body.eye)
+  stamp(pet, frame.l[0] + shift, frame.l[1], eyes.l, look.eye)
+  stamp(pet, frame.r[0] + shift, frame.r[1], eyes.r, look.eye)
   eyes.fx?.(pet)
   // A pet's own think prop, or none, takes the place of the question mark.
   effects(pet, mode, index, elapsedMs, body.props.think !== undefined)
 
-  const drawProp = mode === 'run' ? undefined : propOf(body, mode)
+  const drawProp = mode === 'run' ? undefined : propOf(body, mode, look.palette)
   const trail = trailWidth(minis.length)
   const out = canvas(trail + (drawProp ? PROP_X + PROP_W : BODY_W), HEIGHT)
   minis.slice(0, MAX_MINIS).forEach((m, k) => drawMini(out, trail - (k + 1) * MINI_W, m, k, body))

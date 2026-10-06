@@ -31,6 +31,9 @@ A shield, a boss, a stats pane, and the HUD on the desktop.
   HUD. `stacked` stays the default.
 - **Desktop.** The Desktop app's Code tab now shows the HUD under the pet, each bar drawn as SVG,
   and a theme's scene, as one SVG band.
+- **Forms.** A theme can give a mode a form of its own, `forms: { "<mode>": { sprite, palette, eyes, ... } }`:
+  a new color, a new shape, or both, with every clip made from it. A pet can power up when it cheers,
+  or turn red when a call fails. Themes kept by older versions read with no forms.
 - The preview page shows the new `guard` motion and the boss fight. Themes can set `props.guard`,
   `lines.guard` and `lineColors.guard`.
 

@@ -288,5 +288,13 @@
       ]
     ],
     "every": 44
+  },
+  "forms": {
+    "cheer": {
+      "palette": {
+        "g": "#8dff7a",
+        "s": "#5ed14a"
+      }
+    }
   }
 }

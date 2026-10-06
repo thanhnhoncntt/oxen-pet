@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { animate, maxSize, readTheme, restingFrame } from './theme'
+import { compose } from './pixels'
 
 // The default slime, as assets/slime.json spells it.
 const slime = {
@@ -215,4 +216,51 @@ test('a theme sets the guard mode\'s prop, lines, and line color like any other 
   expect(read.theme.props.guard).toEqual([['d.d', '.d.']])
   expect(read.theme.lines.guard).toEqual(['not that one!'])
   expect(read.theme.lineColors.guard).toBe('#d9822b')
+})
+
+// A pet with a form per mode: `forms` changes how the pet looks while that mode plays.
+const BASE = { name: 'shifty', sprite: ['aaaaaaa', 'aaaaaaa', 'aaaaaaa'], palette: { a: '#336699', b: '#ff0000' }, eyes: [[0, 1], [4, 1]] }
+const has = (c: { px: number[] }, color: string) => c.px.includes(parseInt(color.slice(1), 16))
+
+test('a form that only recolors draws the base sprite in its own colors, in its mode alone', () => {
+  const read = readTheme({ ...BASE, forms: { bash: { palette: { a: '#ff8800' } } } })
+  if (read.errors) {
+    throw new Error(read.errors.join('\n'))
+  }
+  expect(read.notes).toEqual([])
+  const body = animate(read.theme)
+  expect(has(compose(body, 'bash', 0, 1), '#ff8800')).toBe(true)
+  expect(has(compose(body, 'bash', 0, 1), '#336699')).toBe(false)
+  expect(has(compose(body, 'idle', 0, 1), '#ff8800')).toBe(false)
+  expect(has(compose(body, 'idle', 0, 1), '#336699')).toBe(true)
+})
+
+test('a form with its own sprite draws it in every clip of its mode, keeping the base eyes and palette unless it sets its own', () => {
+  const read = readTheme({ ...BASE, forms: { cheer: { sprite: ['.bbb.', 'bbbbb', 'bbbbb', 'bbbbb'] }, run: { sprite: ['bbb', 'bbb'] , eyes: [[0, 0], [1, 0]] } } })
+  if (read.errors) {
+    throw new Error(read.errors.join('\n'))
+  }
+  const body = animate(read.theme)
+  expect(has(compose(body, 'cheer', 300, 1), '#ff0000')).toBe(true)
+  expect(has(compose(body, 'idle', 300, 1), '#ff0000')).toBe(false)
+  expect(read.theme.forms.cheer?.eyes).toEqual([[0, 1], [4, 1]])
+  // A form's sprite is read like the pet's own, and its notes say which form they are about.
+  expect(read.notes).toContain('forms.run: The eye boxes overlap, so the wide eyes and hearts merge into one shape. Pupils 4 pixels apart keep them apart.')
+})
+
+test('a form for a mode that does not exist, or one that is not an object, is left out with a note; a form with no sprite reads as the base', () => {
+  const read = readTheme({ ...BASE, forms: { flying: { palette: { a: '#ffffff' } }, bash: 'red', idle: {} } })
+  if (read.errors) {
+    throw new Error(read.errors.join('\n'))
+  }
+  expect(Object.keys(read.theme.forms)).toEqual(['idle'])
+  expect(read.notes).toEqual(['"flying" in `forms` is not a mode, so it is left out.', '`forms.bash` is not an object of sprite fields, so it is left out.'])
+  const listed = readTheme({ ...BASE, forms: [] })
+  expect(listed.errors ? listed.errors : listed.notes).toContain('`forms` maps a mode to its form, so it is left out.')
+})
+
+test('a theme kept before forms existed reads with none', () => {
+  const read = readTheme(BASE)
+  expect(read.errors).toBeUndefined()
+  expect(read.errors ? undefined : read.theme.forms).toEqual({})
 })

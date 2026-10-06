@@ -20,7 +20,12 @@ export type Theme = {
   miniSprite?: string[]
   props: Body['props']
   scene?: Scene
+  forms: Partial<Record<Mode, Form>> // how the pet looks in a mode, in place of its own sprite fields
 } & Look
+
+/** The sprite fields a form sets for one mode; those it leaves out are the pet's own. */
+export type Form = Pick<Theme, 'scale' | 'sprite' | 'palette' | 'outline' | 'eyes' | 'eyeColor' | 'cheeks' | 'cheekColor'>
+const FORM_KEYS = ['sprite', 'palette', 'scale', 'outline', 'eyes', 'eyeColor', 'cheeks', 'cheekColor'] as const
 
 // The frames mark cheeks and sparkles, and the resting frame pupils, with characters a palette may not use.
 const CHEEK_MARK = '*'
@@ -398,14 +403,54 @@ export function readTheme(v: unknown): { theme: Theme; notes: string[]; errors?:
       lineColors: readLineColors(v.lineColors, notes),
       hud: readHud(v.hud, notes),
       scene: readScene(v.scene, palette, notes),
+      forms: readForms(v, notes),
     },
     notes,
   }
 }
 
+/**
+ * The forms by mode. Each is read as a sprite of its own, from the pet's sprite fields with the form's over them and
+ * the palettes merged, so a form may only recolor. Its notes say which form they are about, past those the pet's own
+ * fields gave already.
+ */
+function readForms(v: Record<string, unknown>, notes: string[]): Theme['forms'] {
+  const forms: Theme['forms'] = {}
+  if (v.forms === undefined) {
+    return forms
+  }
+  if (!isObject(v.forms)) {
+    notes.push('`forms` maps a mode to its form, so it is left out.')
+    return forms
+  }
+  const fields = (o: Record<string, unknown>) => Object.fromEntries(FORM_KEYS.filter(k => o[k] !== undefined).map(k => [k, o[k]]))
+  const before = new Set(notes)
+  for (const [mode, form] of Object.entries(v.forms)) {
+    if (!(mode in MODES)) {
+      notes.push(`"${mode}" in \`forms\` is not a mode, so it is left out.`)
+      continue
+    }
+    if (!isObject(form)) {
+      notes.push(`\`forms.${mode}\` is not an object of sprite fields, so it is left out.`)
+      continue
+    }
+    const palette = { ...(isObject(v.palette) ? v.palette : {}), ...(isObject(form.palette) ? form.palette : {}) }
+    const read = readTheme({ ...fields(v), ...fields(form), palette })
+    if (read.errors) {
+      notes.push(`forms.${mode}: ${read.errors.join(' ')}`)
+      continue
+    }
+    notes.push(...read.notes.filter(n => !before.has(n)).map(n => `forms.${mode}: ${n}`))
+    const t = read.theme
+    forms[mode as Mode] = { scale: t.scale, sprite: t.sprite, palette: t.palette, outline: t.outline, eyes: t.eyes, eyeColor: t.eyeColor, cheeks: t.cheeks, cheekColor: t.cheekColor }
+  }
+
+  return forms
+}
+
 const colorOf = (color: string) => parseInt(color.slice(1), 16)
 
-function poseFrame(theme: Theme, pose: Pose, extra: [number, number][] = []): BodyFrame {
+function poseFrame(theme: Form, pose: Pose, extra: [number, number][] = []): BodyFrame {
   const [sx, sy, dy] = [pose[0] * theme.scale, pose[1] * theme.scale, pose[2] * theme.scale]
   const sw = (theme.sprite[0] as string).length
   const sh = theme.sprite.length
@@ -465,8 +510,8 @@ function poseFrame(theme: Theme, pose: Pose, extra: [number, number][] = []): Bo
   return { g: g.map(row => row.join('')), l, r, e: pose[3] ?? '' }
 }
 
-/** The pet's frames for every clip, with its colors as the drawing code reads them. */
-export function animate(theme: Theme): Body {
+/** A sprite's colors as the drawing code reads them, and its frames for every clip. */
+function drawn(theme: Form): Pick<Body, 'palette' | 'eye' | 'clips'> {
   const palette: Record<string, number> = { [SPARKLE_MARK]: SPARKLE_COLOR }
   for (const [ch, color] of Object.entries(theme.palette)) {
     palette[ch] = colorOf(color)
@@ -476,16 +521,8 @@ export function animate(theme: Theme): Body {
   }
 
   return {
-    name: theme.name,
-    w: BODY_W,
-    h: HEIGHT,
     palette,
     eye: theme.eyes ? { ...EYE_COLOR, K: colorOf(theme.eyeColor) } : {},
-    mini: { top: colorOf(theme.mini.top), body: colorOf(theme.mini.body), edge: colorOf(theme.mini.edge) },
-    miniSprite: theme.miniSprite,
-    props: theme.props,
-    look: { lines: theme.lines, lineColors: theme.lineColors, hud: theme.hud },
-    scene: theme.scene,
     clips: {
       stand: { fps: 8, frames: STAND.map(p => poseFrame(theme, p)) },
       run: { fps: 12, frames: RUN.map(p => poseFrame(theme, p)) },
@@ -493,6 +530,22 @@ export function animate(theme: Theme): Body {
       think: { fps: 6, frames: THINK.map(p => poseFrame(theme, p)) },
       cheer: { fps: 10, frames: CHEER.map((p, i) => poseFrame(theme, p, cheerSparkles(i))) },
     },
+  }
+}
+
+/** The pet's frames for every clip and every form, with its colors as the drawing code reads them. */
+export function animate(theme: Theme): Body {
+  return {
+    name: theme.name,
+    w: BODY_W,
+    h: HEIGHT,
+    ...drawn(theme),
+    mini: { top: colorOf(theme.mini.top), body: colorOf(theme.mini.body), edge: colorOf(theme.mini.edge) },
+    miniSprite: theme.miniSprite,
+    props: theme.props,
+    look: { lines: theme.lines, lineColors: theme.lineColors, hud: theme.hud },
+    scene: theme.scene,
+    forms: Object.fromEntries(Object.entries(theme.forms).map(([mode, form]) => [mode, drawn(form)])),
   }
 }
 
