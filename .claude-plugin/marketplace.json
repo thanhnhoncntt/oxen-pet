@@ -1,6 +1,6 @@
 {
   "name": "oxen-pet",
-  "description": "oxen-pet: a pixel pet and an RPG-style usage HUD for Claude Code (context, rate limits, prompt cache). A hardened, audited fork of pixel-pet.",
+  "description": "oxen-pet: a pixel pet and an RPG-style usage HUD for Claude Code (context, rate limits, prompt cache), and oxen-meter: prompt cache metrics and cold resume warnings for a team. A hardened, audited fork of pixel-pet.",
   "owner": {
     "name": "NhonNguyen",
     "url": "https://github.com/thanhnhoncntt"
@@ -9,6 +9,10 @@
     {
       "name": "oxen-pet",
       "source": "./plugins/oxen-pet"
+    },
+    {
+      "name": "oxen-meter",
+      "source": "./plugins/oxen-meter"
     }
   ]
 }

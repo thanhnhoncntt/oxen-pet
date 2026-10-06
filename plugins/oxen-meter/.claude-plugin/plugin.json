@@ -1,0 +1,87 @@
+{
+  "name": "oxen-meter",
+  "version": "0.1.0",
+  "description": "Measures the prompt cache for a team: hit rate per session, subagent and model, a warning before a cold resume re-writes a whole context, and an anonymized export to pool cost and quota data. Records token counts and timings only, never prompts, code or paths.",
+  "author": {
+    "name": "NhonNguyen"
+  },
+  "homepage": "https://github.com/thanhnhoncntt/oxen-pet",
+  "repository": "https://github.com/thanhnhoncntt/oxen-pet",
+  "license": "MIT",
+  "keywords": [
+    "mod",
+    "prompt-cache",
+    "cache",
+    "cost",
+    "usage",
+    "rate-limit",
+    "subagents",
+    "telemetry",
+    "team"
+  ],
+  "userConfig": {
+    "resumeGuard": {
+      "type": "string",
+      "title": "Cold resume guard",
+      "description": "Before Claude resumes a subagent whose prompt cache has likely gone cold: warn shows a toast, ask lets you spawn a fresh agent instead, off only records it.",
+      "options": ["off", "warn", "ask"],
+      "default": "warn"
+    },
+    "coldTokens": {
+      "type": "number",
+      "title": "Cold resume tokens",
+      "description": "How large a context must be, in tokens, before re-writing it counts as a cold resume.",
+      "default": 50000,
+      "min": 0,
+      "max": 2000000
+    },
+    "mainTtl": {
+      "type": "string",
+      "title": "Main thread cache TTL",
+      "description": "How long the main thread's prompt cache lives: auto uses the TTL the meter measured or inferred (1h until it has samples).",
+      "options": ["auto", "5m", "1h"],
+      "default": "auto"
+    },
+    "subagentTtl": {
+      "type": "string",
+      "title": "Subagent cache TTL",
+      "description": "How long a subagent's prompt cache lives: auto uses the TTL the meter measured or inferred (5m until it has samples).",
+      "options": ["auto", "5m", "1h"],
+      "default": "auto"
+    },
+    "userLabel": {
+      "type": "string",
+      "title": "Your label",
+      "description": "The name your exports carry in the team report, such as a nickname. Empty: anonymous.",
+      "default": ""
+    },
+    "hashProject": {
+      "type": "boolean",
+      "title": "Hash project names",
+      "description": "Keep the project as a hash in the records instead of its folder name.",
+      "default": true
+    },
+    "outputWeight": {
+      "type": "number",
+      "title": "Output weight",
+      "description": "What one output token weighs against one uncached input token in the token equivalent.",
+      "default": 5,
+      "min": 0,
+      "max": 100
+    },
+    "retentionDays": {
+      "type": "number",
+      "title": "Keep sessions (days)",
+      "description": "Session files older than this are emptied. The meter cannot delete files, so an emptied file stays as a few bytes.",
+      "default": 30,
+      "min": 1,
+      "max": 3650
+    },
+    "dataDir": {
+      "type": "string",
+      "title": "Data folder",
+      "description": "An absolute path to the folder the meter writes its sessions and exports to. Empty: oxen-meter in the .claude folder the plugin is installed under.",
+      "default": ""
+    }
+  }
+}

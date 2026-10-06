@@ -293,7 +293,7 @@ changes. What each version changed is in [`CHANGELOG.md`](CHANGELOG.md).
 <summary>Layout, commands, and the demo recorder</summary>
 
 ```text
-.claude-plugin/marketplace.json   the repo is a marketplace with one plugin
+.claude-plugin/marketplace.json   the repo is a marketplace with two plugins: oxen-pet and oxen-meter
 plugins/oxen-pet/                 the plugin: a Claude Code mod
   .claude-plugin/plugin.json      name, version, and settings
   hooks/hooks.json                points Claude Code at register.tsx
@@ -316,6 +316,13 @@ plugins/oxen-pet/                 the plugin: a Claude Code mod
   assets/                         luffy (default), slime, duck, alien themes
   hooks/custom.ts                 the custom themes folder and theme names
   skills/oxen-pet/                the skill that draws a pet with you, and the pet format
+plugins/oxen-meter/               the prompt cache meter: a mod with no band
+  hooks/register.tsx              wires Claude Code's events to the modules
+  hooks/record.ts                 step and event records, and the collector
+  hooks/report.ts                 the /meter pane's rows
+  hooks/codex.ts                  which Bash calls are Codex handoffs or outcomes
+  hooks/timing.ts                 how long the meter's own hooks take
+  hooks/settings.ts               reads the settings
 tools/preview/build.mjs           writes the preview of a theme file
 tools/demo/record.mjs             records docs/images/demo.gif and hud.png (developer tool, never shipped)
 docs/                             design spec and plan of the fork, and the README images
@@ -328,6 +335,8 @@ push, run:
 claude plugin validate . --strict
 claude plugin validate plugins/oxen-pet --strict
 claude plugin test plugins/oxen-pet
+claude plugin validate plugins/oxen-meter --strict
+claude plugin test plugins/oxen-meter
 ```
 
 After one `--plugin-dir` session, `npx -p typescript tsc -p plugins/oxen-pet` type-checks the mod.

@@ -1,4 +1,4 @@
-oxen-pet is a hardened fork of pixel-pet (see `SECURITY-AUDIT.md`), a Claude Code mod: a pixel pet above the prompt and a HUD below it. The repo is a marketplace with one plugin, `plugins/oxen-pet`. `README.md` holds the layout, the commands, and the release step. This file holds the rules a change must keep.
+oxen-pet is a hardened fork of pixel-pet (see `SECURITY-AUDIT.md`), a Claude Code mod: a pixel pet above the prompt and a HUD below it. The repo is a marketplace with two plugins: `plugins/oxen-pet`, and `plugins/oxen-meter`, a mod with no band that measures the prompt cache for a team. `README.md` holds the layout, the commands, and the release step. This file holds the rules a change must keep; the rules for oxen-meter alone are in its own section.
 
 ## Terms
 
@@ -22,12 +22,22 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - **preview**: the HTML page with every motion, face, scene, status line, HUD look, and frame of a pet, from `preview.ts`. There is one; `preview_theme` and `tools/preview/build.mjs` both write it.
 - **activity**: what the session is doing, as the hooks saw it; `anim.ts` turns it into the pet's next mode.
 
+### oxen-meter terms
+
+- **thread**: one model loop, `main` or a subagent by its agent id. **step**: one model request of a thread, as `turn.step` sees it. **step record**: what the meter keeps of a step: its four token counts (uncached input, output, cache read, cache write), model, effort, context, tool names, and times. **event record**: what it keeps around the steps (a subagent's start or stop, a handoff, an outcome, a compaction). Records hold counts, times and names, never a prompt, output, path or command.
+- **context** (of a step): uncached input + cache read + cache write. **hit rate**: cache read over context.
+- **gap**: the time from the start of a thread's last step to the start of its next one: how long its cache went unread. **TTL**: how long a thread's cache lives unread, `5m` or `1h`. **warm**, **cooling** (the last fifth of the TTL) and **cold** (past it) name where a thread's cache stands.
+- **cold resume**: a step whose gap passed its thread's TTL and that wrote at least the **cold tokens** setting to the cache: the whole context written again.
+- **handoff**: work a thread gives away, to a subagent (an Agent call) or to Codex (a Bash call of `codex` or the codex plugin's companion). **outcome**: a commit or a pull request a Bash call made.
+- **collector**: the records of the session in memory, with exact totals by role, agent type and model (`record.ts`). **hook timing**: how long the meter's own hooks take (`timing.ts`).
+
 ## Before a change is done
 
 - Run the three commands in README's Develop section. All must pass.
 - Type-check with `tsc -p plugins/oxen-pet`.
 - Run `node tools/preview/build.mjs` and open the preview. A JS error on the page fails the change.
 - Bump `version` in `plugins/oxen-pet/.claude-plugin/plugin.json` when users should get the change.
+- For oxen-meter: `claude plugin validate plugins/oxen-meter --strict`, `claude plugin test plugins/oxen-meter`, `tsc -p plugins/oxen-meter`; bump its own `version`.
 
 ## Traps
 
@@ -57,3 +67,11 @@ A user who updates keeps three things the old version saved. Each must still loa
 - The desktop has no Raster: whatever the band or the pane draws on the terminal draws as `Svg` there. Keep a band's SVG under the element's 131072 characters (`DESKTOP_BAND_W`).
 - The mod makes no network requests, starts no processes, and reads no environment variables. `SECURITY-AUDIT.md` lists the checks; run them before a push.
 - Upstream changes come in only by `git fetch upstream`, a full read of the diff, and a cherry-pick. Never install upstream's marketplace.
+
+## oxen-meter rules
+
+- It stays out of the cache's way: no `prompt.compose`, `session.append` or `prompt.fill`, no rewrite of a step's model or effort, no answer in the engine's place. Its output is its pane, toasts, command output, and its own files.
+- The hot path (`turn.step`, `tool.call`) only adds to the collector in place and returns: no file, list or store call there. `timing.ts` measures it, and the pane shows the numbers.
+- It fails open on its own errors: no `.catch` that refuses. A hook that throws is skipped, and the step, call or message goes on as Claude Code sent it.
+- A record keeps metadata only (Terms above). A new field is a count, a time, or a name from a fixed set; never text the model or the user wrote.
+- It draws no `AbovePrompt` and no `PromptHint`, so it runs beside oxen-pet; its pane is `Text` only, so it draws alike on the terminal and the desktop.
