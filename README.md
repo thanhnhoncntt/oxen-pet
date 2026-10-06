@@ -18,7 +18,7 @@ until you say so, and failing tests summon a **bug boss** to beat.
 
 <img src="docs/images/demo.gif" alt="oxen-pet in Claude Code: a pixel Luffy reads, searches, fetches, edits and runs tests while the HP, MP and ST bars below the prompt track context, rate limits and prompt cache" width="860">
 
-[Install](#install) · [The pet](#what-the-pet-does) · [The HUD](#the-hud) · [The shield](#the-shield) · [/pet](#pet-session-stats) · [Make it yours](#make-it-yours) · [Settings](#settings) · [Security](#privacy-and-security) · [FAQ](#faq)
+[Install](#install) · [The pet](#what-the-pet-does) · [The HUD](#the-hud) · [The shield](#the-shield) · [/pet](#pet-session-stats) · [Make it yours](#make-it-yours) · [Settings](#settings) · [Security](#privacy-and-security) · [FAQ](#faq) · [oxen-meter](plugins/oxen-meter/README.md)
 
 </div>
 
@@ -48,12 +48,19 @@ until you say so, and failing tests summon a **bug boss** to beat.
 
 ## oxen-meter: the prompt cache, for a team
 
-The same marketplace has a second plugin with no pet: **oxen-meter** measures the prompt cache hit rate of every
-session, subagent and model, warns before a cold resume writes a whole context to the cache again, and exports
-anonymized numbers for a team report. A command-line companion does the same for **Codex CLI** and **Devin CLI**
-sessions, from their own logs and hooks, so one report covers all three. Install it with
-`claude plugin install oxen-meter@oxen-pet`; its [README](plugins/oxen-meter/README.md) says what it records, how to
-set up Codex and Devin, and how to read the report.
+The same marketplace has a second plugin, with no pet. **oxen-meter** shows the prompt cache of every session,
+subagent and model while it runs, asks before a **cold resume** sends a whole context to the model again, counts the
+quota each session used, and exports anonymized numbers for a team report. A command-line companion does the same for
+**Codex CLI** and **Devin CLI**, from their own logs and hooks, so one report covers all three.
+
+<img src="docs/images/meter-pane.png" alt="The oxen-meter pane: the cache hit rate, token counts and TTLs of the session, the main thread warm for 53 more minutes, and a subagent that sat 7 minutes shown cold in red" width="860">
+
+```bash
+claude plugin install oxen-meter@oxen-pet
+```
+
+Then type `/meter`. The [oxen-meter guide](plugins/oxen-meter/README.md) has the demo, the cold resume guard, setting
+up Codex and Devin, reading the report, the team report, and what it records.
 
 ## Install
 
@@ -350,6 +357,7 @@ tools/meter/lib/                  its parts: files and guards, imports, hooks, s
 tools/meter/aggregate.mjs         builds the team report from exports (developer tool)
 tools/preview/build.mjs           writes the preview of a theme file
 tools/demo/record.mjs             records docs/images/demo.gif and hud.png (developer tool, never shipped)
+tools/demo/meter.mjs              records docs/images/meter-demo.gif, meter-pane.png and meter-report.png (the same)
 docs/                             design spec and plan of the fork, and the README images
 ```
 
@@ -368,7 +376,9 @@ node --test 'tools/meter/*.test.mjs'
 After one `--plugin-dir` session, `npx -p typescript tsc -p plugins/oxen-pet` type-checks the mod.
 `node tools/preview/build.mjs [theme file]` (Node 22.18+) writes `tools/preview/preview.html`.
 `node tools/demo/record.mjs` (Node 22.18+, Google Chrome and ffmpeg) records the README's GIF from the
-mod's own modules: no screen capture and no tokens. Contributor rules are in [`CLAUDE.md`](CLAUDE.md).
+mod's own modules: no screen capture and no tokens. `node tools/demo/meter.mjs` does the same for oxen-meter's
+guide, from the meter's modules; `--text` prints its key frames without Chrome. Contributor rules are in
+[`CLAUDE.md`](CLAUDE.md).
 </details>
 
 ## License

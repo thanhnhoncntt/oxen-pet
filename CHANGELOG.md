@@ -19,6 +19,9 @@ Codex CLI and Devin CLI, measured beside Claude Code.
 - New settings: **Cached input weight** (what a cached OpenAI or SWE token weighs, 0.1) and **Cold after** (60).
 - The team report adds tools, gap curves and quota per person; Codex now comes through each person's export
   instead of the collector's own machine.
+- **A guide with a demo.** The meter's README is a guide now: a quick start for each tool, the pane row by row, the
+  guard, the report, and a FAQ, with a GIF of the pane, the guard, the Codex and Devin hooks and the report, recorded
+  from the meter's own modules.
 
 ## 1.1.2 — 2026-10-06
 
