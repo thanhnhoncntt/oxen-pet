@@ -90,7 +90,8 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
    destructive pattern in `hooks/guard.ts`; it then answers `allow` only on the user's **Run it**,
    and `deny` otherwise, including when no one can answer. A `deny` from Claude Code passes through;
    an `ask` gets only a new reason. A query (`$.tool.check` with no `tool_use_id`) is never asked
-   about. If the classifier throws, Claude Code's verdict stands. **Shield** (`guard`) turns it off.
+   about. If the classifier throws, Claude Code's verdict stands. **Shield** (`guard`) turns it on: since 1.1.3
+   it is off by default, and the hook then passes every call on untouched.
    The `tool.call` hook also reads a Bash command to tell a test run (`hooks/boss.ts`) and keeps
    counts, never the command, for `/pet`.
 7. The custom folder (1.1.0): the mod reads themes from `~/.claude/oxen-pet/themes` (found from the plugin's

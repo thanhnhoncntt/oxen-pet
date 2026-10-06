@@ -7,11 +7,11 @@
 A pixel **Luffy** lives above your Claude Code prompt and acts out every tool call, shifting through
 **five gears** as Claude reads, runs, edits, fails and wins. Below the prompt, a
 game HUD shows your **context window**, **5-hour and weekly rate limits**, and **prompt cache**,
-so you always know how much is left. In bypass mode, its **shield** stops destructive commands
-until you say so, and failing tests summon a **bug boss** to beat.
+so you always know how much is left. Turn on its **shield**, and in bypass mode it stops destructive
+commands until you say so; failing tests summon a **bug boss** to beat.
 
 [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757?style=flat-square)](https://code.claude.com/docs/en/plugins/mods/interface)
-[![Version](https://img.shields.io/badge/version-1.1.2-5aa9ff?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.3-5aa9ff?style=flat-square)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4ade80?style=flat-square)](LICENSE)
 [![No network](https://img.shields.io/badge/network-none-a78bfa?style=flat-square)](SECURITY-AUDIT.md)
 [![Audited fork](https://img.shields.io/badge/fork-audited-fbbf24?style=flat-square)](SECURITY-AUDIT.md)
@@ -34,9 +34,9 @@ until you say so, and failing tests summon a **bug boss** to beat.
   even burn, and MP warns `empty ~1h20m` before the 5-hour limit runs out.
 - 🔥 **Keep the prompt cache warm.** A countdown beside HP shows how long the cache lasts after the
   last turn, so you know when the next message gets more expensive.
-- 🛡️ **Run bypass mode without fear.** Before `rm -rf`, `git push --force`, `git reset --hard`,
-  `DROP TABLE` and other destructive commands run unasked, the pet raises a shield and asks you,
-  with how many files each target holds.
+- 🛡️ **Run bypass mode without fear, if you want a second check.** Turn on **Shield**, and before `rm -rf`,
+  `git push --force`, `git reset --hard`, `DROP TABLE` and other destructive commands run unasked, the pet raises a
+  shield and asks you, with how many files each target holds. It is off by default.
 - 🐛 **Make failing tests a game.** A failed test run brings a bug boss into the band; the next green
   run defeats it.
 - 📈 **See your session at a glance.** `/pet` opens a pane with tool calls, files touched, test runs,
@@ -142,6 +142,9 @@ Pro and Max plans once a response has reported its limit.
 
 ## The shield
 
+The shield is **off by default**: in bypass mode it asked about every destructive command, which is more than most
+people running bypass mode want. Turn **Shield** on in `/plugin configure oxen-pet@oxen-pet` for a second check.
+
 Bypass mode and auto mode are fast, until Claude runs the wrong `rm -rf`. The shield steps in only
 when Claude Code would run a Bash command **without asking you**, and only for commands that destroy
 work:
@@ -157,7 +160,7 @@ work:
   `find -delete`, `dd` and `mkfs`.
 - When Claude Code asks you anyway (default mode), the shield adds what the command deletes to its
   dialog and asks nothing itself.
-- With no one to answer (`claude -p`, CI), the command is blocked. Turn **Shield** off for unattended
+- With no one to answer (`claude -p`, CI), the command is blocked. Leave **Shield** off for unattended
   runs.
 
 ## /pet: session stats
@@ -216,7 +219,7 @@ In a session, run `/plugin configure oxen-pet@oxen-pet`.
 | Theme | `luffy` | The pet a session starts with: `luffy`, `slime`, `duck`, `alien`, or the name of one of your own. |
 | Custom folder | empty | The folder of your own `<name>.theme.json` files. Empty: `~/.claude/oxen-pet/themes`. |
 | HUD layout | `row` | `row`: the three bars in one line with no frame, each with its reading and one short detail; stacked on a terminal under about 90 columns. `stacked`: a framed window, one bar per line, with every detail. |
-| Shield | on | Ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
+| Shield | **off** | Ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
 | Bug boss | on | A failed test run brings a bug boss into the band. |
 
 From a shell:
@@ -281,7 +284,7 @@ chat panel, `claude -p`, and cloud sessions do not show the band.
 <details>
 <summary><b>Is it safe to run Claude Code in bypass permissions mode?</b></summary>
 
-Safer with the shield: a destructive Bash command waits for your answer instead of running. It is a
+Safer with the shield on (it is off by default): a destructive Bash command waits for your answer instead of running. It is a
 pattern match, not a sandbox, so it can miss a command spelled in a way it does not know (a script
 that deletes files, say). Keep your work committed, and use Claude Code's own permission rules for
 anything that must never run.

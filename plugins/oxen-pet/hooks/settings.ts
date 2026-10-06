@@ -19,7 +19,7 @@ export type Settings = {
 const PACE: Record<string, number> = { slow: 0.6, normal: 1, fast: 1.6 }
 const CACHE_TTL: Record<string, number> = { '1h': 60, '5m': 5, off: 0 }
 
-export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true, cacheTtlMin: 60, guard: true, boss: true, hudRow: true, theme: DEFAULT_THEME, customDir: '' }
+export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true, cacheTtlMin: 60, guard: false, boss: true, hudRow: true, theme: DEFAULT_THEME, customDir: '' }
 
 const flag = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
 

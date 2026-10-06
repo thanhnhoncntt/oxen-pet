@@ -154,7 +154,7 @@ Options left out keep their values. The change applies after Claude Code restart
 | `theme` | a theme name | The pet a session starts with: `luffy` (default), `slime`, `duck`, `alien`, or `<name>` for `<name>.theme.json` in the custom folder. |
 | `customDir` | an absolute path | The folder of the user's own themes. Empty: `~/.claude/oxen-pet/themes`. |
 | `hudLayout` | `row`, `stacked` | `row` (default): the bars in one line with no frame, a short detail each. `stacked`: a framed window, one bar per line, every detail. |
-| `guard` | `true`, `false` | The shield: ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
+| `guard` | `false` (default), `true` | The shield: ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
 | `boss` | `true`, `false` | A failed test run brings a bug boss into the band. |
 
 ## Troubleshooting

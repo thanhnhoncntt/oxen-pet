@@ -1,6 +1,6 @@
 {
   "name": "oxen-pet",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "A pixel Luffy above the Claude Code prompt who acts out each tool call in five gears, an HP/MP/ST HUD for context, rate limits, and prompt cache, a shield that asks before destructive commands, a bug boss for failing tests, and a /pet stats pane. Your own pets live in a folder updates never touch.",
   "author": {
     "name": "NhonNguyen"
@@ -85,8 +85,8 @@
     "guard": {
       "type": "boolean",
       "title": "Shield",
-      "description": "Ask before a destructive Bash command (rm -r, git push --force, git reset --hard, DROP TABLE, ...) runs unasked, in bypass or auto mode or by an allow rule. With no one to answer, it is blocked.",
-      "default": true
+      "description": "Off by default. On: ask before a destructive Bash command (rm -r, git push --force, git reset --hard, DROP TABLE, ...) runs unasked, in bypass or auto mode or by an allow rule. With no one to answer, it is blocked.",
+      "default": false
     },
     "boss": {
       "type": "boolean",

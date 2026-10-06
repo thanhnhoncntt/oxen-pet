@@ -28,9 +28,10 @@ test('the cache timer counts an hour unless the user picks five minutes or turns
   expect(readSettings({ cacheTtl: 'toString' }).cacheTtlMin).toBe(60)
 })
 
-test('the shield and the boss are on unless the user turns them off', () => {
-  expect([readSettings({}).guard, readSettings({}).boss]).toEqual([true, true])
-  expect(readSettings({ guard: 'no', boss: 0 })).toEqual(DEFAULTS)
+test('the shield is off until the user turns it on; the boss is on until the user turns it off', () => {
+  expect([readSettings({}).guard, readSettings({}).boss]).toEqual([false, true])
+  expect(readSettings({ guard: true }).guard).toBe(true)
+  expect(readSettings({ guard: 'yes', boss: 0 })).toEqual(DEFAULTS)
 })
 
 test('the HUD lays its bars in a row unless the user stacks them', () => {

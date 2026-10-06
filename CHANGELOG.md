@@ -3,6 +3,12 @@
 What each version of oxen-pet, and of oxen-meter, adds or changes for a user. Installed copies update
 only when the version in the plugin's `.claude-plugin/plugin.json` changes; see README's Update section.
 
+## 1.1.3 — 2026-10-06
+
+- **The shield is off by default.** In bypass mode it asked about every destructive command, which is more than most
+  people running bypass mode want. Turn **Shield** on in `/plugin configure oxen-pet@oxen-pet` to have it ask again;
+  a setting you saved before keeps its value.
+
 ## oxen-meter 1.1.0 — 2026-10-06
 
 Codex CLI and Devin CLI, measured beside Claude Code.

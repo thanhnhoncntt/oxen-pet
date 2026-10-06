@@ -291,7 +291,7 @@ function stubGuard(on: Parameters<TestBody>[1], decision: 'allow' | 'ask' | 'den
 
 const RISKY = { tool: 'Bash', input: { command: 'rm -rf /tmp/build' }, tool_use_id: 'toolu_1' } as never
 
-test('the shield asks before a destructive command runs unasked, names what it deletes, and runs it only on "Run it"', async ($, on) => {
+test('the shield asks before a destructive command runs unasked, names what it deletes, and runs it only on "Run it"', { options: { guard: true } }, async ($, on) => {
   stubEngine(on)
   const asked = stubGuard(on, 'allow', 'Run it')
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
@@ -303,7 +303,7 @@ test('the shield asks before a destructive command runs unasked, names what it d
   expect(asked[0]).toContain('/tmp/build: not there')
 })
 
-test('the shield blocks on "Block it", and when no one answers', async ($, on) => {
+test('the shield blocks on "Block it", and when no one answers', { options: { guard: true } }, async ($, on) => {
   stubEngine(on)
   stubGuard(on, 'allow', 'Block it')
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
@@ -315,7 +315,7 @@ test('the shield blocks on "Block it", and when no one answers', async ($, on) =
   await band.unmount()
 })
 
-test('with no one to answer, the shield blocks and names the setting that turns it off', async ($, on) => {
+test('with no one to answer, the shield blocks and names the setting that turns it off', { options: { guard: true } }, async ($, on) => {
   stubEngine(on)
   stubGuard(on, 'allow', undefined)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
@@ -324,13 +324,21 @@ test('with no one to answer, the shield blocks and names the setting that turns 
   expect(verdict.reason).toContain('Shield')
 })
 
-test("the shield leaves Claude Code's own ask and deny alone, adding what the command deletes to an ask", async ($, on) => {
+test("the shield leaves Claude Code's own ask and deny alone, adding what the command deletes to an ask", { options: { guard: true } }, async ($, on) => {
   stubEngine(on)
   const asked = stubGuard(on, 'ask', 'Run it')
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   const verdict = await $.tool.check(RISKY)
   expect(verdict.decision).toBe('ask')
   expect(verdict.reason).toContain('deletes files and folders for good')
+  expect(asked).toHaveLength(0)
+})
+
+test('the shield is off by default: a destructive command goes as Claude Code decided, with no question', async ($, on) => {
+  stubEngine(on)
+  const asked = stubGuard(on, 'allow', 'Block it')
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  expect((await $.tool.check(RISKY)).decision).toBe('allow')
   expect(asked).toHaveLength(0)
 })
 
@@ -342,7 +350,7 @@ test('the shield passes a safe command, a query, and everything when turned off'
   expect(asked).toHaveLength(0)
 })
 
-test('a query about a destructive command never opens a dialog', async ($, on) => {
+test('a query about a destructive command never opens a dialog', { options: { guard: true } }, async ($, on) => {
   stubEngine(on)
   const asked = stubGuard(on, 'allow', 'Block it')
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
