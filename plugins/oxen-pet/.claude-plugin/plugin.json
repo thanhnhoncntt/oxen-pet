@@ -1,6 +1,6 @@
 {
   "name": "oxen-pet",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A pixel Luffy above the Claude Code prompt who acts out each tool call in five gears, an HP/MP/ST HUD for context, rate limits, and prompt cache, a shield that asks before destructive commands, a bug boss for failing tests, and a /pet stats pane. Your own pets live in a folder updates never touch.",
   "author": {
     "name": "NhonNguyen"

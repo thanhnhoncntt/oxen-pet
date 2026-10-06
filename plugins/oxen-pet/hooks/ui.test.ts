@@ -474,7 +474,7 @@ test('the /pet pane draws its pet as an SVG where there is no Raster, and leaves
   await other.unmount()
 })
 
-test('the row layout draws the bars side by side in one window row, and stacks them on a terminal too narrow for it', { options: { hudLayout: 'row' } }, async ($, on) => {
+test('the row layout draws the bars side by side in one row, and the compact HUD on a terminal too narrow for it', { options: { hudLayout: 'row' } }, async ($, on) => {
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
@@ -489,10 +489,44 @@ test('the row layout draws the bars side by side in one window row, and stacks t
   await wide.unmount()
 
   const narrow = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 40, rows: 40 }, ...HINT })
-  const stacked = JSON.stringify(await narrow.drawn())
-  expect(stacked).not.toContain('"key":"row"')
-  expect(stacked).toContain('♥ HP')
+  const compact = JSON.stringify(await narrow.drawn())
+  expect(compact).not.toContain('"key":"row"')
+  expect(compact).toContain('"key":"compact"')
   await narrow.unmount()
+})
+
+test('the stacked layout draws its window where it fits, and the compact HUD where it does not', { options: { hudLayout: 'stacked' } }, async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const fits = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 70, rows: 40 }, ...HINT })
+  expect(JSON.stringify(await fits.drawn())).toContain('▄▄▄')
+  await fits.unmount()
+  const narrow = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 38, rows: 40 }, ...HINT })
+  const compact = JSON.stringify(await narrow.drawn())
+  expect(compact).toContain('"key":"compact"')
+  expect(compact).not.toContain('▄▄▄')
+  await narrow.unmount()
+})
+
+test('a terminal narrower than the HUD window, such as a split pane, gets one bar a line with no window, cut rather than wrapped', async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const narrow = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 38, rows: 40 }, ...HINT })
+  const compact = JSON.stringify(await narrow.drawn())
+  expect(compact).toContain('"key":"compact"')
+  expect(compact).toContain('♥ HP')
+  expect(compact).toContain('"columns":10')
+  expect(compact).toContain('"wrap":"truncate"')
+  expect(compact).not.toContain('▄▄▄')
+  expect(compact).not.toContain('▀▀▀')
+  await narrow.unmount()
+
+  const tiny = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 15, rows: 40 }, ...HINT })
+  const none = JSON.stringify(await tiny.drawn())
+  expect(none).not.toContain('♥ HP')
+  expect(none).toContain('engine hint')
+  await tiny.unmount()
 })
 
 test('on the desktop the row layout lays the HUD\'s bars side by side too', { options: { hudLayout: 'row' } }, async ($, on) => {

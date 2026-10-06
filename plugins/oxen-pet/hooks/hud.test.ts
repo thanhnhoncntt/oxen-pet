@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
 
-import { BAR_W, DETAIL_COLOR, ROW_BAR_W, hudRowWidth, LOW_HP, contextAlert, contextAlertText, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
+import { BAR_W, DETAIL_COLOR, ROW_BAR_W, compactBarW, hudRowWidth, LOW_HP, contextAlert, contextAlertText, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
 
 const usage = (over: Partial<SessionUsage> = {}): SessionUsage => ({
   startedAt: 0,
@@ -176,4 +176,9 @@ test('a row has no window: it is as wide as its labels, bars, text, and the gaps
   const rows = hudRows({ hp: 100, cacheMin: 52, mp: 92, mpResetsInMin: 129, st: 74, stResetsInMin: 3540 }, {}, true)
   const content = rows.reduce((n, r) => n + [...r.label].length + 1 + ROW_BAR_W + r.parts.reduce((m, p) => m + [...p.text].length, 0), 0)
   expect(hudRowWidth(rows)).toBe(content + 3 * (rows.length - 1))
+})
+
+test('a HUD narrower than its window shrinks its bars to fit, down to four cells, and has none under 16 columns', () => {
+  expect([compactBarW(40), compactBarW(28), compactBarW(22), compactBarW(16), compactBarW(15)]).toEqual([ROW_BAR_W, 9, 4, 4, undefined])
+  expect(hudRows({ hp: 80, mp: 50, mpResetsInMin: 90 }, {}, true, 6).map(r => r.bar.w)).toEqual([6, 6])
 })

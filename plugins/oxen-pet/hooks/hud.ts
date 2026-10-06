@@ -203,10 +203,11 @@ const pairOf = (fill: [string, string] | undefined, fallback: Pair): Pair => (fi
 /**
  * The HUD's rows: HP, and MP and ST when the session has their readings, each in the pet's `look` unless
  * the look hides it. A bar's warning colors (yellow and red) replace its fill whatever the look. `isRow` lays
- * them side by side: shorter bars, and beside each reading only one short detail, or its warning.
+ * them side by side: shorter bars, and beside each reading only one short detail, or its warning. `barW` sets
+ * the bars' width in cells, for a HUD that must fit a narrow terminal.
  */
-export function hudRows(h: Hud, look: HudLook = {}, isRow = false): HudRow[] {
-  const w = isRow ? ROW_BAR_W : BAR_W
+export function hudRows(h: Hud, look: HudLook = {}, isRow = false, barW?: number): HudRow[] {
+  const w = barW ?? (isRow ? ROW_BAR_W : BAR_W)
   const rows: (Omit<HudRow, 'cells'> & { look: BarLook | false | undefined })[] = []
   const hpFill = h.hp > 50 ? pairOf(look.hp ? look.hp.fill : undefined, GREEN) : h.hp > 25 ? YELLOW : RED
   rows.push({
@@ -283,3 +284,22 @@ export const hudRowWidth = (rows: HudRow[]) =>
 
 /** The HUD window's width in cells, sides included: room for a label, a bar and the longest row's text. */
 export const HUD_WINDOW_W = 64
+
+/** The cells a compact row needs beside its bar: the margin, a label, a gap, a reading and one short detail. */
+const COMPACT_TEXT_W = 19
+const COMPACT_MIN_BAR_W = 4
+/** Under this many columns the HUD draws nothing: a bar would be too short to read. */
+export const COMPACT_MIN_W = 16
+
+/**
+ * The bar width of the compact HUD, one bar a line with no window, for a terminal narrower than the window, such
+ * as a pane split beside others: the row's bar width when it fits, shorter down to four cells, none under
+ * COMPACT_MIN_W columns. Text past the edge is cut, never wrapped.
+ */
+export function compactBarW(columns: number): number | undefined {
+  if (columns < COMPACT_MIN_W) {
+    return undefined
+  }
+
+  return Math.max(COMPACT_MIN_BAR_W, Math.min(ROW_BAR_W, columns - COMPACT_TEXT_W))
+}

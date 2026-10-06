@@ -3,6 +3,13 @@
 What each version of oxen-pet, and of oxen-meter, adds or changes for a user. Installed copies update
 only when the version in the plugin's `.claude-plugin/plugin.json` changes; see README's Update section.
 
+## 1.1.2 — 2026-10-06
+
+- **The HUD fits a narrow pane.** In a terminal narrower than the HUD window (64 columns), such as a
+  pane split beside other agents, the HUD drew its window anyway and every edge wrapped. It now draws
+  one bar per line with no window, bars shortened to fit (down to 4 cells), and cuts the text at the
+  edge instead of wrapping it. Under 16 columns the HUD hides.
+
 ## oxen-meter 1.0.0 — 2026-10-06
 
 A second plugin: the prompt cache, measured for a team. No pet, no band.

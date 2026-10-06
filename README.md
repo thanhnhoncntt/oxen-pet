@@ -11,7 +11,7 @@ so you always know how much is left. In bypass mode, its **shield** stops destru
 until you say so, and failing tests summon a **bug boss** to beat.
 
 [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757?style=flat-square)](https://code.claude.com/docs/en/plugins/mods/interface)
-[![Version](https://img.shields.io/badge/version-1.1.1-5aa9ff?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.2-5aa9ff?style=flat-square)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4ade80?style=flat-square)](LICENSE)
 [![No network](https://img.shields.io/badge/network-none-a78bfa?style=flat-square)](SECURITY-AUDIT.md)
 [![Audited fork](https://img.shields.io/badge/fork-audited-fbbf24?style=flat-square)](SECURITY-AUDIT.md)
@@ -123,7 +123,9 @@ allows.
 The line shows each reading and one short detail: the cache for HP, the time to reset for MP and ST, or
 a warning in their place. For every detail in the table above, `spare` and `over` included, set
 **HUD layout** to `stacked`: a framed window with one bar per line. A terminal too narrow for the line
-(about 90 columns) gets the stacked window.
+(about 90 columns) gets the stacked window. One narrower than the window (64 columns), such as a pane
+split beside other agents, gets one bar per line with no window, the bars shorter and the text cut at
+the edge; under 16 columns the HUD hides.
 
 HP turns yellow at 50 % or less and red at 25 % or less. As it drops under 20 %, a toast suggests
 `/compact`, or handing off to a fresh session, once until HP climbs back to 30 %. MP and ST turn red under 15 %, and show on

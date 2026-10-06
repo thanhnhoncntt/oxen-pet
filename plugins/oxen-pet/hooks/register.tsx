@@ -9,7 +9,7 @@ import type { Boss } from './boss'
 import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
 import type { Risk } from './guard'
 import { newStats, noteMp, recordShield, recordTest, recordTool, recordTurn, statsRows } from './stats'
-import { DETAIL_COLOR, HUD_WINDOW_W, ROW_GAP, cacheLeftMin, hudRowWidth, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
+import { DETAIL_COLOR, HUD_WINDOW_W, ROW_GAP, cacheLeftMin, compactBarW, hudRowWidth, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
@@ -559,6 +559,39 @@ export const register: Register = (on, options) => {
                     {p.text}
                   </Text>
                 ))}
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )
+    }
+    // Narrower than the window, as in a pane split beside others: one bar a line, no window, the text cut at the edge.
+    if (e.viewport !== undefined && e.viewport.columns < HUD_WINDOW_W + 1) {
+      const barW = compactBarW(e.viewport.columns)
+      if (barW === undefined) {
+        return next(e)
+      }
+      const compact = hudRows({ ...hud, cacheMin }, body.look.hud, true, barW)
+
+      return (
+        <Box flexDirection="column">
+          {await next(e)}
+          <Box key="compact" flexDirection="column" marginLeft={1} width={e.viewport.columns - 2}>
+            {compact.map(r => (
+              <Box key={r.key}>
+                <Text color={r.color}>{r.label} </Text>
+                <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
+                <Text color={r.parts[0]?.color} bold wrap="truncate">
+                  {r.parts[0]?.text ?? ''}
+                </Text>
+                {r.parts.length > 1 && (
+                  <Text color={r.parts[1]?.color} wrap="truncate">
+                    {r.parts
+                      .slice(1)
+                      .map(p => p.text)
+                      .join('')}
+                  </Text>
+                )}
               </Box>
             ))}
           </Box>
