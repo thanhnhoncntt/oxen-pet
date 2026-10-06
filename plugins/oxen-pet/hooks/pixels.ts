@@ -55,6 +55,7 @@ export const MODES: Record<Mode, ModeSpec> = {
   jump: { clip: 'jump', once: (14 / 12) * 1000, eyes: [['open', 1000]] },
   cheer: { clip: 'cheer', once: 1800, eyes: [['star', 900], ['happy', 900]] },
   error: { clip: 'stand', once: 2000, eyes: [['dizzy', 1000]] },
+  guard: { clip: 'stand', fps: 6, prop: true, eyes: [['focus', 1400], ['wide', 600]] },
 }
 
 export function frameIndex(count: number, fps: number, elapsedMs: number, isLoop: boolean) {
@@ -213,6 +214,22 @@ export function expressionName(mode: Mode, elapsedMs: number, hint: string, mood
 
 const hex = (s: string) => parseInt(s.slice(1), 16)
 
+const SHIELD = [
+  'SSSSSSSSSSSS',
+  'SBBBBYBBBBDS',
+  'SBBBBYBBBBDS',
+  'SBBYYYYYBBDS',
+  'SBBBBYBBBBDS',
+  'SBBBBYBBBBDS',
+  'SBBBBBBBBBDS',
+  '.SBBBBBBBBS.',
+  '.SBBBBBBBDS.',
+  '..SBBBBBDS..',
+  '...SBBBDS...',
+  '....SBDS....',
+  '.....SS.....',
+]
+
 const PROPS: Partial<Record<Mode, (c: Canvas, t: number) => void>> = {
   read: (c, t) => {
     const row = Math.floor(t / 300) % 3
@@ -305,6 +322,14 @@ const PROPS: Partial<Record<Mode, (c: Canvas, t: number) => void>> = {
     }
     if (Math.floor(t / 250) % 2 === 0) {
       rect(c, 2, 16, 2, 1, hex('#e6e8ec'))
+    }
+  },
+  guard: (c, t) => {
+    // A shield held up, with a glint running along its rim.
+    stamp(c, 2, 4, SHIELD, { S: hex('#c9ced8'), B: hex('#3b82f6'), D: hex('#1e4fa8'), Y: hex('#ffe25a') })
+    const glint = Math.floor(t / 90) % 24
+    if (glint < 12) {
+      put(c, 2 + glint, 4, hex('#ffffff'))
     }
   },
   web: (c, t) => {

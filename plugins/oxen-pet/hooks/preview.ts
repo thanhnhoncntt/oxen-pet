@@ -22,6 +22,7 @@ const WHEN: Record<Mode, string> = {
   agent: 'A subagent starts',
   error: 'A tool call fails',
   cheer: 'A turn ends',
+  guard: 'A destructive command waits for your answer',
 }
 // What the status line names in each mode, for the lines that name something.
 const SAMPLE_TARGET: Partial<Record<Mode, string>> = { read: 'app.ts', search: 'useState', edit: 'app.ts', bash: 'npm test', web: 'docs.anthropic.com' }

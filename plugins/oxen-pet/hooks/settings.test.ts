@@ -7,8 +7,8 @@ test('no options give the defaults', () => {
 })
 
 test('each option sets its setting', () => {
-  expect(readSettings({ speed: 'fast', sleepAfter: 300, hud: false, statusLine: false, targets: false, minis: false, cacheTtl: '5m' })).toEqual({
-    pace: 1.6, sleepAfterMs: 300000, hud: false, statusLine: false, targets: false, minis: false, cacheTtlMin: 5,
+  expect(readSettings({ speed: 'fast', sleepAfter: 300, hud: false, statusLine: false, targets: false, minis: false, cacheTtl: '5m', guard: false, boss: false })).toEqual({
+    pace: 1.6, sleepAfterMs: 300000, hud: false, statusLine: false, targets: false, minis: false, cacheTtlMin: 5, guard: false, boss: false,
   })
 })
 
@@ -26,4 +26,9 @@ test('the cache timer counts an hour unless the user picks five minutes or turns
   expect(readSettings({ cacheTtl: '5m' }).cacheTtlMin).toBe(5)
   expect(readSettings({ cacheTtl: 'off' }).cacheTtlMin).toBe(0)
   expect(readSettings({ cacheTtl: 'toString' }).cacheTtlMin).toBe(60)
+})
+
+test('the shield and the boss are on unless the user turns them off', () => {
+  expect([readSettings({}).guard, readSettings({}).boss]).toEqual([true, true])
+  expect(readSettings({ guard: 'no', boss: 0 })).toEqual(DEFAULTS)
 })

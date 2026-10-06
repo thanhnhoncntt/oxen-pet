@@ -28,6 +28,7 @@ export type Activity = {
   room: number // the furthest column a running pet may reach
   obstacles: Span[] // the scene's obstacles, in band columns
   trail: number // the minis' width, drawn behind the pet
+  guarding?: boolean // a risky command waits for the user's answer, or just got it
 }
 
 /** The mode the pet holds while nothing starts or ends. */
@@ -68,7 +69,13 @@ export function step(a: Anim, w: Activity, t: number, s: Pick<Settings, 'pace' |
   const length = MODES[mode].once
   const once = length === undefined ? undefined : length / s.pace
 
-  if (a.working && !w.isWorking) {
+  if (w.guarding) {
+    // The shield goes up at once, whatever the pet was doing, and stays up until the user answers.
+    if (mode !== 'guard') {
+      mode = 'guard'
+      since = t
+    }
+  } else if (a.working && !w.isWorking) {
     mode = 'cheer'
     since = t
   } else if (!a.working && w.isWorking) {

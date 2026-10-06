@@ -3,6 +3,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Anim, Mode } from '../types'
 import { TICK_MS, fail, leapClipMs, step } from './anim'
+import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
+import type { Risk } from './guard'
 import { BAR_W, HUD_WINDOW_W, cacheLeftMin, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { minisOnScreen, reconcile } from './minis'
@@ -26,6 +28,10 @@ const AGENTS_EVERY_BEATS = 5
 const SLOW_BEATS: Partial<Record<Mode, number>> = { idle: 2, sleep: 4 } // ticks per redraw while nothing moves fast
 const SVG_PX = 4 // CSS pixels per pet pixel on the desktop
 const HUD_SVG_PX = 6 // CSS pixels per bar pixel on the desktop, so a bar is as tall as its text
+
+const GUARD_HOLD_MS = 2500 // how long the shield stays up after the answer, so it shows even when the dialog hid the band
+const BLOCKED = 'The user blocked this command with the oxen-pet shield. Ask them before trying it another way.'
+const UNANSWERED = 'Blocked by the oxen-pet shield: no one answered its question. To let destructive commands run unasked, turn off Shield in /plugin configure oxen-pet@oxen-pet.'
 
 const THEME_KEY = 'theme' // in $.store: the theme set_theme last took
 const OWN_TOOLS = 'mcp__oxen-pet__'
@@ -82,6 +88,13 @@ async function previewWriteError($: EngineInterface, path: unknown) {
   return previewTargetError(await statOf($, path), await statOf($, path.slice(0, cut + 1)))
 }
 
+/** How many files each of `risk`'s targets holds, undefined where its spelling cannot be sized. */
+async function sizesOf($: EngineInterface, risk: Risk) {
+  const fs = { stat: (path: string) => $.fs.stat(path), list: (path: string) => $.fs.list(path) }
+
+  return Promise.all(risk.targets.map(t => (t.unsized ? undefined : sizeOf(t.path, fs))))
+}
+
 /** What preview_theme and set_theme tell Claude about a theme's pet: the clips and faces made, the resting frame, and readTheme's notes. */
 function themeReport(pet: Body, notes: string[]) {
   const made = `${Object.keys(pet.clips).join(', ')}, and ${FACES.length} faces`
@@ -131,6 +144,8 @@ export const register: Register = (on, options) => {
   let previewed: unknown // the last theme preview_theme drew, for set_theme to apply without resending it
   let layout: SceneLayout | undefined // the scene of `layoutOf` on a band `bandWidth()` wide
   let layoutOf: Body | undefined
+  let guarding = 0 // risky commands waiting for the user's answer
+  let shield: { result: 'blocked' | 'ran'; until: number } | undefined // the last answer, shown until `until`
 
   // The band leaves the last column free, so a full row never wraps.
   const bandWidth = () => Math.max(BODY_W, bodyColumns - 1)
@@ -199,8 +214,9 @@ export const register: Register = (on, options) => {
       const room = Math.max(0, bodyColumns - BODY_W - trail - STATUS_ROOM)
       const scene = body && sceneLayout(body)
       const obstacles = scene ? obstacleSpans(scene) : []
+      const isGuarding = guarding > 0 || (shield !== undefined && t < shield.until)
       await update($, anim, a => {
-        const moved = step(a, { isWorking, activeTools, activeMode, activeTarget, lastToolAt, room, obstacles, trail }, t, settings)
+        const moved = step(a, { isWorking, activeTools, activeMode, activeTarget, lastToolAt, room, obstacles, trail, guarding: isGuarding }, t, settings)
         // Minis hop on every tick, so they keep the redraw rate up while the pet idles.
         const slowBeat = minis.length > 0 ? undefined : SLOW_BEATS[moved.mode]
         return slowBeat !== undefined && moved.mode === a.mode && beat % slowBeat !== 0 ? a : moved
@@ -221,8 +237,48 @@ export const register: Register = (on, options) => {
     return result
   })
 
+  // The shield: a destructive command that would run unasked waits for the user's answer, the pet holding up its shield.
+  on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
+    const verdict = await next(e)
+    // A query (no tool_use_id) asks what would happen, and must never open a dialog.
+    if (!settings.guard || e.tool_use_id === undefined || verdict.decision === 'deny') {
+      return verdict
+    }
+    let command: string
+    let risk: Risk | undefined
+    try {
+      const given = (e.input as { command?: unknown } | undefined)?.command
+      command = typeof given === 'string' ? given : ''
+      risk = riskOf(command)
+    } catch {
+      return verdict
+    }
+    if (!risk) {
+      return verdict
+    }
+    const question = guardQuestion(command, risk, await sizesOf($, risk).catch(() => []))
+    // Claude Code asks already: its dialog shows what the command deletes.
+    if (verdict.decision === 'ask') {
+      return { ...verdict, reason: question }
+    }
+    guarding += 1
+    try {
+      const answer = await $.ui.ask(question, { header: 'Shield', options: [GUARD_OPTIONS.block, GUARD_OPTIONS.run] }).catch(() => undefined)
+      const ran = answer === GUARD_OPTIONS.run
+      shield = { result: ran ? 'ran' : 'blocked', until: (await $.clock.now()) + GUARD_HOLD_MS }
+      if (ran) {
+        return { decision: 'allow' as const, reason: 'The user let it run when the oxen-pet shield asked.' }
+      }
+
+      return { decision: 'deny' as const, reason: answer === undefined ? UNANSWERED : BLOCKED }
+    } finally {
+      guarding -= 1
+    }
+  })
+
   on('tool.call', async ($, e, next) => {
-    if (e.tool.startsWith(OWN_TOOLS)) {
+    // The shield's own question is a call of AskUserQuestion; the pet holds its shield through it.
+    if (e.tool.startsWith(OWN_TOOLS) || (guarding > 0 && e.tool === 'AskUserQuestion')) {
       return next(e)
     }
     const t = await $.clock.now()
@@ -357,7 +413,8 @@ export const register: Register = (on, options) => {
       const drawn = a.leap ? { mode: 'jump' as const, ms: leapClipMs((now - a.leap.since) * settings.pace) } : { mode: a.mode, ms: elapsed * settings.pace }
       const picture = compose(body, drawn.mode, drawn.ms, a.dir, hud ? mood(hud) : 'ok', views)
       const extra = views.length > MAX_MINIS ? ` (+${views.length - MAX_MINIS} minis)` : ''
-      const line = settings.statusLine ? statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode]) + extra : ''
+      const shielded = shield !== undefined && guarding === 0 && now < shield.until ? guardLine(shield.result) : undefined
+      const line = settings.statusLine ? (shielded ?? statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode])) + extra : ''
       if (showsError) {
         showsError = false
         $.ui.status(undefined)

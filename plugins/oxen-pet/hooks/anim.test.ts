@@ -101,3 +101,12 @@ test('a turn that ends mid-leap cheers once the pet lands', () => {
   const landed = step(mid, quiet, LEAP_MS)
   expect([landed.mode, landed.x]).toEqual(['cheer', 45])
 })
+
+test('the shield goes up at once while a risky command waits for the user, and comes down to what the session is doing', () => {
+  const jumping = step(resting, { ...quiet, isWorking: true }, 1000)
+  const guarding = step(jumping, { ...quiet, isWorking: true, guarding: true }, 1100)
+  expect([guarding.mode, guarding.since]).toEqual(['guard', 1100])
+  expect(step(guarding, { ...quiet, isWorking: true, guarding: true }, 60000).mode).toBe('guard')
+  const after = step(guarding, { ...quiet, isWorking: true, lastToolAt: 60000 }, 60100)
+  expect(after.mode).toBe('run')
+})

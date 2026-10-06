@@ -70,6 +70,7 @@ export const LINES: Record<Mode, string[]> = {
   jump: ['here we go!', 'on it!'],
   cheer: ['ta-da!', 'all done!', 'nailed it ✦'],
   error: ['oops, that one bit back', 'that did not work', 'ouch…'],
+  guard: ['shield up! that one deletes things', 'hold on, asking you first', 'is this really okay?'],
 }
 
 const SWAP_MS = 4000
@@ -93,6 +94,7 @@ const LINE_COLOR: Record<Mode, string> = {
   jump: '#3b9dff',
   cheer: '#e0b400',
   error: '#f0506e',
+  guard: '#e0763a',
 }
 
 /** The color of the status line and its arrow in this mode: the pet's own, else the mod's. */

@@ -258,3 +258,80 @@ test('the desktop band draws a scene as one SVG with the ground, and the HUD set
   expect(drawn).not.toContain('♥ HP')
   await band.unmount()
 })
+
+/** Makes Claude Code's own verdict `decision`, and answers the shield's question with `answer`; undefined dismisses it. Returns the questions asked. */
+function stubGuard(on: Parameters<TestBody>[1], decision: 'allow' | 'ask' | 'deny', answer: string | undefined) {
+  const asked: string[] = []
+  on('tool.check', () => ({ decision, reason: 'the mode decided' }))
+  on('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => {
+    const question = (e as unknown as { questions: { question: string }[] }).questions[0]!.question
+    asked.push(question)
+    if (answer === undefined) {
+      return { deny: 'dismissed' }
+    }
+    return { result: { questions: (e as unknown as { questions: unknown[] }).questions, answers: { [question]: answer } } } as never
+  })
+  return asked
+}
+
+const RISKY = { tool: 'Bash', input: { command: 'rm -rf /tmp/build' }, tool_use_id: 'toolu_1' } as never
+
+test('the shield asks before a destructive command runs unasked, names what it deletes, and runs it only on "Run it"', async ($, on) => {
+  stubEngine(on)
+  const asked = stubGuard(on, 'allow', 'Run it')
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const verdict = await $.tool.check(RISKY)
+  expect(verdict.decision).toBe('allow')
+  expect(asked).toHaveLength(1)
+  expect(asked[0]).toContain('`rm -rf /tmp/build` deletes files and folders for good')
+  expect(asked[0]).toContain('/tmp/build: not there')
+})
+
+test('the shield blocks on "Block it", and when no one answers', async ($, on) => {
+  stubEngine(on)
+  stubGuard(on, 'allow', 'Block it')
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const blocked = await $.tool.check(RISKY)
+  expect([blocked.decision, blocked.reason]).toEqual(['deny', expect.stringContaining('The user blocked')])
+
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', ...BAND })
+  expect(JSON.stringify(await band.drawn())).toContain('shield up: blocked it')
+  await band.unmount()
+})
+
+test('with no one to answer, the shield blocks and names the setting that turns it off', async ($, on) => {
+  stubEngine(on)
+  stubGuard(on, 'allow', undefined)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const verdict = await $.tool.check(RISKY)
+  expect(verdict.decision).toBe('deny')
+  expect(verdict.reason).toContain('Shield')
+})
+
+test("the shield leaves Claude Code's own ask and deny alone, adding what the command deletes to an ask", async ($, on) => {
+  stubEngine(on)
+  const asked = stubGuard(on, 'ask', 'Run it')
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const verdict = await $.tool.check(RISKY)
+  expect(verdict.decision).toBe('ask')
+  expect(verdict.reason).toContain('deletes files and folders for good')
+  expect(asked).toHaveLength(0)
+})
+
+test('the shield passes a safe command, a query, and everything when turned off', { options: { guard: false } }, async ($, on) => {
+  stubEngine(on)
+  const asked = stubGuard(on, 'allow', 'Block it')
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  expect((await $.tool.check(RISKY)).decision).toBe('allow')
+  expect(asked).toHaveLength(0)
+})
+
+test('a query about a destructive command never opens a dialog', async ($, on) => {
+  stubEngine(on)
+  const asked = stubGuard(on, 'allow', 'Block it')
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  expect((await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf /tmp/build' } })).decision).toBe('allow')
+  expect((await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'toolu_2' } as never)).decision).toBe('allow')
+  expect(asked).toHaveLength(0)
+})

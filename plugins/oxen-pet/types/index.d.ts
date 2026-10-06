@@ -12,6 +12,7 @@ export type Mode =
   | 'jump'
   | 'cheer'
   | 'error'
+  | 'guard'
 
 export type Anim = {
   mode: Mode
