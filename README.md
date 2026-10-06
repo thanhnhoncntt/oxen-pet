@@ -50,8 +50,10 @@ until you say so, and failing tests summon a **bug boss** to beat.
 
 The same marketplace has a second plugin with no pet: **oxen-meter** measures the prompt cache hit rate of every
 session, subagent and model, warns before a cold resume writes a whole context to the cache again, and exports
-anonymized numbers for a team report. Install it with `claude plugin install oxen-meter@oxen-pet`; its
-[README](plugins/oxen-meter/README.md) says what it records and how to read the report.
+anonymized numbers for a team report. A command-line companion does the same for **Codex CLI** and **Devin CLI**
+sessions, from their own logs and hooks, so one report covers all three. Install it with
+`claude plugin install oxen-meter@oxen-pet`; its [README](plugins/oxen-meter/README.md) says what it records, how to
+set up Codex and Devin, and how to read the report.
 
 ## Install
 
@@ -328,18 +330,24 @@ plugins/oxen-pet/                 the plugin: a Claude Code mod
 plugins/oxen-meter/               the prompt cache meter: a mod with no band
   hooks/register.tsx              wires Claude Code's events to the modules
   hooks/record.ts                 step and event records, and the collector
-  hooks/analyze.ts                hit rate, token equivalent, TTLs, cold resumes, handoffs, anti-patterns
+  hooks/provider.ts               a model's provider and family, and what its tokens weigh
+  hooks/analyze.ts                hit rate, token equivalent, TTLs, gap curves, cold resumes, handoffs, quota, anti-patterns
   hooks/sessionFile.ts            a session's file: written whole, kept under 3 MiB, emptied when expired
-  hooks/dataPath.ts               where the meter may write
+  hooks/dataPath.ts               where the meter (and its CLI) may write
   hooks/resume.ts                 the cold resume guard: who a message resumes, the risk, what the user is asked
+  hooks/hookGuard.ts              the CLI's guard for Codex and Devin: the risk, the warning, the held-back prompt
+  hooks/codexLog.ts               Codex's rollout files, a line at a time, as records
+  hooks/devinLog.ts               Devin's session nodes as records
   hooks/exportFile.ts             /meter export: the sessions of the last days, anonymized
-  README.md                       for the team: install, use, reading the report, what it records
-tools/meter/aggregate.mjs         builds the team report from exports (developer tool, never shipped)
   hooks/project.ts                the project's name, hashed
   hooks/report.ts                 the /meter pane's rows and /meter report
   hooks/codex.ts                  which Bash calls are Codex handoffs or outcomes
   hooks/timing.ts                 how long the meter's own hooks take
   hooks/settings.ts               reads the settings
+  README.md                       for the team: install, use, Codex and Devin, reading the report, what it records
+tools/meter/oxen-meter.mjs        the CLI for Codex and Devin: import, report, export, setup, hook (ships in the clone)
+tools/meter/lib/                  its parts: files and guards, imports, hooks, setup
+tools/meter/aggregate.mjs         builds the team report from exports (developer tool)
 tools/preview/build.mjs           writes the preview of a theme file
 tools/demo/record.mjs             records docs/images/demo.gif and hud.png (developer tool, never shipped)
 docs/                             design spec and plan of the fork, and the README images

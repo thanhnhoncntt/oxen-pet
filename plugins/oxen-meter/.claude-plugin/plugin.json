@@ -1,7 +1,7 @@
 {
   "name": "oxen-meter",
-  "version": "1.0.0",
-  "description": "Measures the prompt cache for a team: hit rate per session, subagent and model, a warning before a cold resume re-writes a whole context, and an anonymized export to pool cost and quota data. Records token counts and timings only, never prompts, code or paths.",
+  "version": "1.1.0",
+  "description": "Measures the prompt cache for a team, in Claude Code and, with its command-line companion, Codex CLI and Devin CLI: hit rate per session, subagent and model, a warning before a cold resume re-sends a whole context, the quota each session used, and an anonymized export to pool cost and quota data. Records token counts and timings only, never prompts, code or paths.",
   "author": {
     "name": "NhonNguyen"
   },

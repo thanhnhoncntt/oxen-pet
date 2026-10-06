@@ -3,6 +3,23 @@
 What each version of oxen-pet, and of oxen-meter, adds or changes for a user. Installed copies update
 only when the version in the plugin's `.claude-plugin/plugin.json` changes; see README's Update section.
 
+## oxen-meter 1.1.0 — 2026-10-06
+
+Codex CLI and Devin CLI, measured beside Claude Code.
+
+- **A command-line companion**, `tools/meter/oxen-meter.mjs` (Node 22.18+): `import` reads Codex's rollout files
+  and Devin's session database into the meter's data folder, so `/meter report` and `/meter export` count them;
+  `report` and `export` work without Claude Code too. Token counts, times and names only, as in Claude Code.
+- **Hooks for Codex and Devin**, added by `setup codex|devin --write` (asks first, keeps a backup): before a prompt
+  or a follow-up resumes a thread that sat past **Cold after** (60 minutes), Codex shows a warning; with the guard on
+  `ask`, Codex and Devin hold the prompt back once. Each turn's end imports that thread.
+- **The report by tool**: each tool's sessions and cost; for Codex and Devin, which have no fixed cache TTL, the
+  **gap curve** (how often the cache held after 5 minutes to 6 hours idle); Devin's keepalive pings; compactions;
+  and the **quota** each session used, from Claude Code's 5-hour and 7-day windows and Codex's weekly one.
+- New settings: **Cached input weight** (what a cached OpenAI or SWE token weighs, 0.1) and **Cold after** (60).
+- The team report adds tools, gap curves and quota per person; Codex now comes through each person's export
+  instead of the collector's own machine.
+
 ## 1.1.2 — 2026-10-06
 
 - **The HUD fits a narrow pane.** In a terminal narrower than the HUD window (64 columns), such as a

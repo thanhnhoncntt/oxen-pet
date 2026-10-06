@@ -1,9 +1,10 @@
 # oxen-meter
 
-Prompt cache metrics for a team on Claude Code: the cache hit rate of every session, subagent and model; a warning
-before a **cold resume** writes a whole context to the cache again; and an anonymized export, so a team can pool its
-numbers and see where its cost and quota go. It draws no pet and no band, and runs beside
-[oxen-pet](../../README.md) or alone.
+Prompt cache metrics for a team on Claude Code, Codex CLI and Devin CLI: the cache hit rate of every session,
+subagent and model; a warning before a **cold resume** sends a whole context to the model again; the quota each
+session used; and an anonymized export, so a team can pool its numbers and see where its cost and quota go. In Claude
+Code it is a mod that draws no pet and no band, and runs beside [oxen-pet](../../README.md) or alone; for Codex and
+Devin, a command-line companion reads their logs and runs as their hooks ([below](#codex-and-devin)).
 
 ## Why
 
@@ -69,6 +70,52 @@ Before Claude sends a message (SendMessage) that resumes an agent idle past nine
 A thread that wakes on its own past its TTL, such as a subagent whose background Codex run just finished, cannot be
 stopped by a plugin. It gets a toast, once per idle spell, and the report counts it.
 
+## Codex and Devin
+
+Neither can load a Claude Code mod, so the meter reads their own logs with a Node script, `tools/meter/oxen-meter.mjs`
+(Node 22.18 or later). Claude Code keeps a clone of this marketplace in `~/.claude/plugins/marketplaces/oxen-pet`;
+run it from there, a path that stays put across updates, or from a clone of your own:
+
+```bash
+M=~/.claude/plugins/marketplaces/oxen-pet/tools/meter/oxen-meter.mjs
+node $M import [days]          # Codex's ~/.codex/sessions and Devin's sessions.db, into the data folder
+node $M report [days]          # the report over Claude Code, Codex and Devin, 7 days by default
+node $M export [days]          # the export, for whoever has no Claude Code, 30 days by default
+node $M setup codex --write    # adds the meter's hooks to ~/.codex/hooks.json (asks first, keeps a backup)
+node $M setup devin --write    # the same in the "hooks" of ~/.config/devin/config.json
+```
+
+Once imported, `/meter report` and `/meter export` in Claude Code count Codex and Devin too. The script takes your
+oxen-meter settings from Claude Code (`~/.claude/settings.json`), and writes to the same data folder. An import reads
+each Codex file on from where the last one stopped, so it stays quick: 2.1 GB of rollouts took 2.7 seconds the first
+time.
+
+| | Claude Code | Codex CLI | Devin CLI |
+| --- | --- | --- | --- |
+| Where the numbers come from | every request, live | every request, from its rollout files | every request, from its database |
+| Cache writes | 5m or 1h | none: OpenAI does not charge for them | Claude models only |
+| How long the cache lives | a TTL, 5m or 1h, measured or inferred | no fixed TTL: the gap curve | no fixed TTL: the gap curve; Devin pings its cache to keep it |
+| Subagents | each a thread | each its own rollout, a thread by its role | each chain a thread by its profile |
+| Quota | the 5-hour and 7-day windows | the weekly window | not kept locally |
+| Before a cold resume | toast, or a question | hooks: a message, or the prompt held back once | hooks: the prompt held back once |
+
+**The hooks.** `setup` prints what it would add; `--write` adds it after a yes, beside your own hooks, and keeps the
+old file as `….oxen-meter.bak`. Codex runs a new hook only once you trust it: open Codex and run `/hooks`. The hooks
+run the Node that ran `setup`; after you upgrade Node, run `setup` again.
+
+- **Codex.** A prompt into a thread that sat past **Cold after** (60 minutes by default) with at least **Cold resume
+  tokens** of context shows a line, `↳ Hook · oxen-meter: this thread sat 1h12m…`, which the model never sees. With
+  the guard on `ask` the prompt is held back once instead: press ↑ and Enter to send it anyway. A follow-up
+  (`followup_task`, `send_message`) to a subagent that sat as long gets the same line; Codex cannot ask before a tool
+  call, so it is never held back. Each turn's, subagent's and session's end imports that thread at once.
+- **Devin.** Devin shows no message from a hook, only a held-back prompt's reason, so `warn` says nothing there; with
+  the guard on `ask`, a prompt into a session that sat past Cold after is held back once (`Prompt blocked: …`), and ↑
+  and Enter send it. Devin's keepalive pings read the cache every few minutes, so the guard counts from the last one.
+  Each turn's and session's end imports that session.
+
+A hook prints nothing and lets everything through when anything goes wrong. A Codex hook takes about 70 to 180 ms a
+run, a Devin one 150 to 460 ms (it opens Devin's database), Node's start included.
+
 ## Settings
 
 Run `/plugin configure oxen-meter@oxen-pet`. Every setting has a default.
@@ -102,6 +149,14 @@ Settings apply after Claude Code restarts.
 - **Cold resume**: a step whose gap passed its TTL and that wrote at least the cold resume tokens again, or a session
   resumed (`claude --resume`) after its cache likely expired. "Beyond a read" is what it cost over reading the same
   context warm. Steps after a compaction, a model switch or a rewind are left out: those write the context anyway.
+- **Tools**: each tool's sessions and token equivalent, when the report holds Codex or Devin.
+- **Gaps** (the gap curve, Codex and Devin): of the steps that came after the thread sat 5–10 minutes, 10–30, 30–60,
+  1–2 hours, 2–6 and longer, how many read their context back from the cache (`warm`). It is how long their cache
+  lived for you; set **Cold after** from it.
+- **Keepalive**: Devin's pings that keep a cache warm, and what they cost. **Compaction**: how many, and what the
+  compactions' own requests cost (Codex and Devin report them).
+- **Quota**: the points of each rate-limit window that moved while your sessions ran (`claude 7d +12 pts`). Readings
+  more than an hour apart are not joined, since someone else's use may sit between them; two accounts count apart.
 - **Handoffs**: work given to a subagent (Agent), to Codex, or back to an agent by a message (resume). "Back" is how
   long it took to return; "next handoff" is how long the thread took to hand off again, such as sending the fix.
 - **Flags** (anti-patterns):
@@ -112,7 +167,9 @@ Settings apply after Claude Code restarts.
 **What it measured so far** (Claude Code 2.1.291, Sonnet 5.5 and Opus 5.5, 2026-10-06): a subagent's cache
 writes were all 5m (an Agent call's split, measured), and a subagent idle 5.4 to 12 minutes wrote its whole context
 again. The main thread stayed warm after 10 minutes idle in an interactive session (1h), but wrote its context again
-after 6 minutes in `claude -p` (5m). Let the meter keep measuring: the TTLs may differ by plan, mode and version.
+after 6 minutes in `claude -p` (5m). Codex (one machine, 60 days): gpt-5.6 read its context back 30 of 33 times after
+5–10 minutes, 14 of 23 after 1–2 hours, never after 2 hours; gpt-6.1 was still warm after 8 minutes. Devin's SWE-2:
+2 of 7 after 5–10 minutes, none after 10. Let the meter keep measuring: these may differ by plan, mode and version.
 
 **Limits.** Claude Code reports a request's cache writes as one number, not split by TTL, so a role's TTL is measured
 only where an Agent call or a model switch reports it, and inferred elsewhere; the report shows the samples behind
@@ -143,15 +200,25 @@ rate-limit reading that moved (its window's length, how much of it is used, when
 the tool it ran in, the project as a salted hash, its start, its cost as `/cost` totals it, the meter's version and
 settings, and how long the meter's own hooks took. A Devin step sent only to keep the cache warm is marked as such.
 
+For Codex and Devin the command-line companion keeps the same records, from their logs: each request's four token
+counts, model, effort, times and tool names; a subagent's start and stop, by its role or profile; a handoff to it and
+a follow-up, with the thread's idle time and context; a compaction's tokens; a keepalive's mark; each rate-limit
+reading. From a Codex line it parses only the kinds it records; from Devin's database it takes metadata only, with
+SQLite's own JSON functions, so a message's text never reaches it. The project folder is hashed with the same salt.
+
 Never recorded: prompts, answers, thinking, a tool's input or output, file names or paths, commands, message text,
 environment variables. The meter makes no network request and starts no process.
 
 An export goes further: each session's id is hashed, agent and turn ids become `a1`, `t1`, MCP tool names become
 `mcp`, times count from the session's start (only its day is kept), and no folder appears in it.
 
-Files live in the data folder: `sessions/<session id>.json`, written by a timer after a main turn ends and when the
-session ends, and `exports/oxen-meter-export-<date>[-<label>].json`. Nothing else is written, and every write is
-checked first (no `..`, no symbolic link). A plugin cannot delete a file, so a session file past **Keep sessions
+Files live in the data folder: `sessions/<session id>.json` (and `codex-<id>.json`, `devin-<id>.json`), written by a
+timer after a main turn ends and when the session ends, or by an import; `exports/oxen-meter-export-<date>[-<label>].json`;
+and in `state/`, the salt the mod and the companion share, where each import stopped, and its locks. Nothing else is
+written in it, and every write is checked first (no `..`, no symbolic link). `setup --write` writes Codex's or
+Devin's hook configuration alone, after a yes, with a backup. A plugin cannot delete a file, so a session file past **Keep sessions
 (days)** is emptied to a few bytes instead. The checks are in [`SECURITY-AUDIT.md`](../../SECURITY-AUDIT.md).
 
-To uninstall, run `claude plugin uninstall oxen-meter@oxen-pet`, then delete the data folder if you want.
+To uninstall, run `claude plugin uninstall oxen-meter@oxen-pet`, take the oxen-meter entries out of
+`~/.codex/hooks.json` and `~/.config/devin/config.json` (or put the `.oxen-meter.bak` files back), then delete the data
+folder if you want.
