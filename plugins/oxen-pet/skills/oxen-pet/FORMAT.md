@@ -98,6 +98,7 @@ A mode is what the pet is acting out. Props, status lines, and line colors are s
 | `run` | A tool call ends, for 4 seconds | | |
 | `cheer` | A turn ends | | |
 | `error` | A tool call fails | | |
+| `guard` | A destructive command waits for the user's answer (the shield) | a shield | |
 
 A target is cut to 24 characters. A mode with no target in the last column has no `{}` value.
 

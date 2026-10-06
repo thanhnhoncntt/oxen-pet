@@ -23,6 +23,8 @@ const { minisOnScreen } = await hook('minis')
 const { animate, readTheme } = await hook('theme')
 const { BODY_W, MAX_MINIS, compose, encodeCells, trailWidth } = await hook('pixels')
 const { lineColor, statusLine, targetOf, toolMode } = await hook('status')
+const { BOSS_W, bossAfter, bossOnScreen, drawBoss } = await hook('boss')
+const { guardLine } = await hook('guard')
 
 const out = process.argv[2] ?? fileURLToPath(new URL('../../docs/images/demo.gif', import.meta.url))
 const hudOut = join(dirname(out), 'hud.png')
@@ -36,8 +38,8 @@ if (!existsSync(chromePath)) {
 
 const PROMPT = 'add a dark mode toggle to the settings page'
 const TYPED = [300, 1700] // ms: the prompt is typed between these
-const TURN = [2000, 21200] // ms: the turn runs between these
-const END_MS = 25000
+const TURN = [2000, 25600] // ms: the turn runs between these
+const END_MS = 29400
 // Each tool call: when it runs, its tool and input, the transcript's name for it, and its result.
 const CALLS = [
   { at: [3600, 5600], tool: 'Read', input: { file_path: 'src/settings/Settings.tsx' }, shown: 'Read(src/settings/Settings.tsx)', result: 'Read 142 lines' },
@@ -54,9 +56,13 @@ const CALLS = [
   { at: [14600, 16600], tool: 'Bash', input: { command: 'npm test' }, shown: 'Bash(npm test)', result: 'Error: 1 test failed', fails: true },
   { at: [17000, 18400], tool: 'Edit', input: { file_path: 'src/theme.ts' }, shown: 'Update(src/theme.ts)', result: 'Updated with 3 additions' },
   { at: [18800, 20800], tool: 'Bash', input: { command: 'npm test' }, shown: 'Bash(npm test)', result: '24 passed' },
+  // In auto mode this would run unasked; the shield asks, and the user blocks it.
+  { at: [22000, 24400], tool: 'Bash', input: { command: 'rm -rf dist' }, shown: 'Bash(rm -rf dist)', result: 'Blocked by the oxen-pet shield', fails: true, guard: true },
 ]
+const GUARD_HOLD_MS = 2500 // register.tsx keeps the shield up this long after the answer
+const isTest = c => c.input.command === 'npm test'
 const SUBAGENT = { id: 'tokens', since: 8400, doneAt: 20200, name: 'Find the theme tokens' }
-const ANSWER = 'The settings page has a dark mode toggle, and the tests pass.'
+const ANSWER = 'The settings page has a dark mode toggle, and the tests pass. I left dist/ alone.'
 
 // The HUD as the session's usage would read every 2 s: context and the 5-hour limit drain while the turn runs.
 function hudAt(t) {
@@ -103,7 +109,7 @@ function spansOps(row, col, spans) {
   })
 }
 
-function screen(t, a, body) {
+function screen(t, a, body, boss) {
   const ops = []
   transcriptAt(t).forEach((l, i) => ops.push(...spansOps(1 + i, 0, l.spans ?? [l])))
 
@@ -113,8 +119,12 @@ function screen(t, a, body) {
   const elapsed = t - a.since
   const picture = compose(body, a.mode, elapsed, a.dir, mood(hud), minis)
   const extra = minis.length > MAX_MINIS ? ` (+${minis.length - MAX_MINIS} minis)` : ''
-  const line = statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode]) + extra
-  const x = Math.min(Math.round(a.x), Math.max(0, COLS - picture.w - line.length - 4))
+  const blocked = CALLS.find(c => c.guard && t >= c.at[1] && t < c.at[1] + GUARD_HOLD_MS)
+  const line = (blocked ? guardLine('blocked') : statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode])) + extra
+  const shown = bossOnScreen(boss, t)
+  const bossW = shown ? BOSS_W + 1 : 0
+  const x = Math.min(Math.round(a.x), Math.max(0, COLS - picture.w - line.length - 4 - bossW))
+  if (shown) ops.push({ kind: 'raster', row: band, col: COLS - 1 - BOSS_W, columns: BOSS_W, cells: encodeCells(drawBoss(shown, t)) })
   ops.push({ kind: 'raster', row: band, col: x, columns: picture.w, cells: encodeCells(picture) })
   ops.push({ kind: 'text', row: band + ROWS - 2, col: x + picture.w + 1, text: `› ${line}`, color: lineColor(a.mode, body.look.lineColors), bold: true })
 
@@ -153,30 +163,40 @@ function play() {
   const body = animate(readTheme(JSON.parse(readFileSync(new URL('assets/slime.json', plugin), 'utf8'))).theme)
   let a = { mode: 'idle', since: 0, x: 0, dir: 1, tick: 0, target: '', working: false }
   let ops
+  let boss
   const frames = []
   for (let beat = 0, t = 0; t < END_MS; beat++, t += TICK_MS) {
     const running = CALLS.filter(c => t >= c.at[0] && t < c.at[1])
     const ended = CALLS.filter(c => t >= c.at[1])
     const latest = running.at(-1)
     for (const c of CALLS) {
-      if (c.fails && t - TICK_MS < c.at[1] && t >= c.at[1]) a = fail(a, c.at[1])
+      const endsNow = t - TICK_MS < c.at[1] && t >= c.at[1]
+      if (c.fails && endsNow) a = fail(a, c.at[1])
+      if (isTest(c) && endsNow) {
+        const before = bossOnScreen(boss, t)
+        boss = bossAfter(before, c.fails ? 'failed' : 'passed', c.at[1])
+        if (before && before.defeatedAt === undefined && boss?.defeatedAt !== undefined) a = { ...a, mode: 'cheer', since: c.at[1] }
+      }
     }
+    const bossRoom = bossOnScreen(boss, t) ? BOSS_W + 2 : 0
+    const guarding = CALLS.some(c => c.guard && t >= c.at[0] && t < c.at[1] + GUARD_HOLD_MS)
     const activity = {
       isWorking: t >= TURN[0] && t < TURN[1],
       activeTools: running.length,
       activeMode: latest ? toolMode(latest.tool) : a.mode,
       activeTarget: latest ? targetOf(latest.tool, latest.input) : '',
       lastToolAt: running.length ? t : (ended.at(-1)?.at[1] ?? -Infinity),
-      room: Math.max(0, COLS - BODY_W - trailWidth(minisAt(t).length) - STATUS_ROOM),
+      room: Math.max(0, COLS - BODY_W - trailWidth(minisAt(t).length) - STATUS_ROOM - bossRoom),
       obstacles: [], // the slime has no scene
       trail: trailWidth(minisAt(t).length),
+      guarding,
     }
     const moved = step(a, activity, t)
-    const slowBeat = minisAt(t).length > 0 ? undefined : SLOW_BEATS[moved.mode]
+    const slowBeat = minisAt(t).length > 0 || bossOnScreen(boss, t) ? undefined : SLOW_BEATS[moved.mode]
     const holds = slowBeat !== undefined && moved.mode === a.mode && beat % slowBeat !== 0
     if (!holds) {
       a = moved
-      ops = screen(t, a, body)
+      ops = screen(t, a, body, boss)
     }
     frames.push(ops)
   }

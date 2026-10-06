@@ -1,6 +1,6 @@
 ---
 name: oxen-pet
-description: Customize the oxen-pet theme. Draw, recolor, or edit the mascot, change its props (the thinking question mark, the web globe, the book, the terminal), minis, status line text and colors, the HUD's look, and the scene (a background, ground, and obstacles the pet jumps). Also sets speed, sleep, HUD on or off, status line on or off, naming files, and minis, loads or shares a theme file, and brings the slime back.
+description: Customize the oxen-pet theme. Draw, recolor, or edit the mascot, change its props (the thinking question mark, the web globe, the book, the terminal), minis, status line text and colors, the HUD's look, and the scene (a background, ground, and obstacles the pet jumps). Also sets speed, sleep, HUD on or off, status line on or off, naming files, minis, the shield, and the bug boss, loads or shares a theme file, and brings the slime back.
 ---
 
 # Pixel pet
@@ -27,7 +27,7 @@ Name the parts the request touches:
 | The words beside the pet, or their color | `lines`, `lineColors` | [Status lines](FORMAT.md#status-lines) |
 | The HUD's frame, labels, colors, fills, or a hidden bar | `hud` | [HUD](FORMAT.md#hud) |
 | A background, ground, or obstacles the pet jumps | `scene` | [Scene](FORMAT.md#scene) |
-| Speed, sleep, the HUD or status line on or off, naming files, minis on or off | settings, not the theme | [Settings](#settings) |
+| Speed, sleep, the HUD or status line on or off, naming files, minis, the shield or the boss on or off | settings, not the theme | [Settings](#settings) |
 
 A whole style ("a pirate pet") touches the sprite, the lines, the HUD, and the scene at once. Change each and say what you changed.
 
@@ -148,6 +148,8 @@ Options left out keep their values. The change applies after Claude Code restart
 | `targets` | `true`, `false` | The status line names the file, pattern, command, host, or search query. `false` suits a shared screen. |
 | `minis` | `true`, `false` | A mini behind the pet for each running subagent. |
 | `cacheTtl` | `1h`, `5m`, `off` | How long the HUD counts the prompt cache warm after a turn. |
+| `guard` | `true`, `false` | The shield: ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
+| `boss` | `true`, `false` | A failed test run brings a bug boss into the band. |
 
 ## Troubleshooting
 

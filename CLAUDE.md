@@ -11,6 +11,10 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - **HUD**: the window below the prompt with up to three bars. **HP** is the context window left, **MP** the 5-hour rate limit left, **ST** the 7-day rate limit left.
 - **reading**: the bold number after a bar. **detail**: the grey text after the reading.
 - **even pace**: where MP or ST would be if its limit were used evenly through its window, marked on the bar; **spare** is how far the reading is ahead of it. **cache timer**: the minutes the prompt cache stays warm after the main thread's last turn, shown beside HP.
+- **shield**: the `tool.check` hook that asks Block it / Run it before a destructive Bash command runs unasked; **guard** is its mode, setting and module (`guard.ts`). **target** of an `rm` is a path it deletes; its **size** is the files under it.
+- **boss**: the bug a failed test run brings into the band, from `boss.ts`; a **hit** is each failed run while it stands; a passing run **defeats** it.
+- **low-context alert**: the toast and red status line as HP drops under `LOW_HP`.
+- **pane**: the `/pet` pane, with the session's **stats** from `stats.ts`.
 - **settings**: the user's choices from the plugin's `userConfig`, read by `settings.ts`. **pace**: the speed setting as a multiplier.
 - **prop**: what the pet holds beside it in a mode (a book, a terminal), the mod's or the pet's own; `props.think` also stands in for the question mark. **look**: what a theme changes beyond the pet's drawing: status lines, line colors, and the HUD.
 - **scene**: a theme's background for the band, from `scene.ts`: a **ground** row below the pet, a **sky** drawing that stays put near the top right, **obstacles** standing on the ground, and **decor** behind the pet; raised decor drifts. **leap**: a running pet's jump over an obstacle, the jump clip slowed while it travels.
@@ -47,6 +51,8 @@ A user who updates keeps three things the old version saved. Each must still loa
 ## Decisions
 
 - All art is original. Do not add sprites, images, or fonts copied from elsewhere.
-- The mod decorates around the chat: the band and the HUD. It does not restyle what Claude Code draws itself, such as tool rows, the spinner, or dialogs.
+- The mod decorates around the chat: the band, the HUD, and the `/pet` pane. It does not restyle what Claude Code draws itself, such as tool rows, the spinner, or dialogs.
+- The shield may refuse a call, and only a Bash call Claude Code would run unasked whose command matches `guard.ts`. Keep it fail-closed on the user's answer and fail-open on the mod's own errors.
+- The desktop has no Raster: whatever the band or the pane draws on the terminal draws as `Svg` there. Keep a band's SVG under the element's 131072 characters (`DESKTOP_BAND_W`).
 - The mod makes no network requests, starts no processes, and reads no environment variables. `SECURITY-AUDIT.md` lists the checks; run them before a push.
 - Upstream changes come in only by `git fetch upstream`, a full read of the diff, and a cherry-pick. Never install upstream's marketplace.

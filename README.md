@@ -6,17 +6,18 @@
 
 A little slime lives above your Claude Code prompt and acts out every tool call. Below the prompt, a
 game HUD shows your **context window**, **5-hour and weekly rate limits**, and **prompt cache**,
-so you always know how much is left.
+so you always know how much is left. In bypass mode, its **shield** stops destructive commands
+until you say so, and failing tests summon a **bug boss** to beat.
 
 [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757?style=flat-square)](https://code.claude.com/docs/en/plugins/mods/interface)
-[![Version](https://img.shields.io/badge/version-1.0.2-5aa9ff?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-5aa9ff?style=flat-square)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4ade80?style=flat-square)](LICENSE)
 [![No network](https://img.shields.io/badge/network-none-a78bfa?style=flat-square)](SECURITY-AUDIT.md)
 [![Audited fork](https://img.shields.io/badge/fork-audited-fbbf24?style=flat-square)](SECURITY-AUDIT.md)
 
 <img src="docs/images/demo.gif" alt="oxen-pet in Claude Code: a pixel slime reads, searches, fetches, edits and runs tests while the HP, MP and ST bars below the prompt track context, rate limits and prompt cache" width="860">
 
-[Install](#install) · [The pet](#what-the-pet-does) · [The HUD](#the-hud) · [Make it yours](#make-it-yours) · [Settings](#settings) · [Security](#privacy-and-security) · [FAQ](#faq)
+[Install](#install) · [The pet](#what-the-pet-does) · [The HUD](#the-hud) · [The shield](#the-shield) · [/pet](#pet-session-stats) · [Make it yours](#make-it-yours) · [Settings](#settings) · [Security](#privacy-and-security) · [FAQ](#faq)
 
 </div>
 
@@ -32,6 +33,13 @@ so you always know how much is left.
   even burn, and MP warns `empty ~1h20m` before the 5-hour limit runs out.
 - 🔥 **Keep the prompt cache warm.** A countdown beside HP shows how long the cache lasts after the
   last turn, so you know when the next message gets more expensive.
+- 🛡️ **Run bypass mode without fear.** Before `rm -rf`, `git push --force`, `git reset --hard`,
+  `DROP TABLE` and other destructive commands run unasked, the pet raises a shield and asks you,
+  with how many files each target holds.
+- 🐛 **Make failing tests a game.** A failed test run brings a bug boss into the band; the next green
+  run defeats it.
+- 📈 **See your session at a glance.** `/pet` opens a pane with tool calls, files touched, test runs,
+  and your burn rate.
 - 🎨 **Make your own pet.** Ask Claude for a cat, a duck or an alien with its own props, scene, status
   lines and HUD colors. Claude shows you a preview page before anything changes.
 - 🔒 **Safe to run.** No network, no processes, no environment variables, no tokens spent. It is a
@@ -66,6 +74,9 @@ To uninstall, run `claude plugin uninstall oxen-pet@oxen-pet`.
 | A subagent starts | Smiles. A mini joins the trail behind the pet until that subagent finishes. |
 | A tool call fails | `x x` eyes and a sweat drop |
 | A turn ends | Cheers |
+| A destructive command waits for you | Holds up a shield ([The shield](#the-shield)) |
+| A test run fails | A bug boss walks in at the right, with a pip per failed run. The next passing run defeats it, and the pet cheers. |
+| The context runs low | Says so in red, and a toast suggests `/compact` or a hand-off |
 
 The pet's face follows the HUD too: it looks worried as the context fills up, and tired when a rate
 limit runs low. With **Name files and commands** on, the status line also names the target, such as
@@ -79,7 +90,7 @@ A pixel window below the prompt holds up to three bars. Each shows what is **lef
 
 | Bar | Tracks | Beside the reading |
 | --- | --- | --- |
-| **♥ HP** | The context window left | `cache 52m`: how long the prompt cache stays warm after the last turn, then `cache cold`. `/compact` under 10 %. |
+| **♥ HP** | The context window left | `cache 52m`: how long the prompt cache stays warm after the last turn, then `cache cold`. `⚠ HP` and `/compact` under 20 %. |
 | **✦ MP** | The 5-hour rate limit left | The time to its reset, and how far ahead of an even pace you are (`15% spare`) or behind (`5% over`). `empty ~1h20m` in red when the burn so far would empty it before the reset. |
 | **◆ ST** | The 7-day (weekly) rate limit left | The time to its reset, and `spare` or `over` as for MP. |
 
@@ -88,8 +99,44 @@ limit were used evenly through its window. Fill to the right of the mark means y
 than the pace and can push harder. Fill to the left means you are burning faster than the window
 allows.
 
-HP turns yellow at 50 % or less and red at 25 % or less. MP and ST turn red under 15 %, and show on
+HP turns yellow at 50 % or less and red at 25 % or less. As it drops under 20 %, a toast suggests
+`/compact`, or handing off to a fresh session, once until HP climbs back to 30 %. MP and ST turn red under 15 %, and show on
 Pro and Max plans once a response has reported its limit.
+
+## The shield
+
+Bypass mode and auto mode are fast, until Claude runs the wrong `rm -rf`. The shield steps in only
+when Claude Code would run a Bash command **without asking you**, and only for commands that destroy
+work:
+
+> oxen-pet shield: `rm -rf build dist` deletes files and folders for good. build: 132 files ·
+> dist: 2000+ files. Run it?
+
+- **Block it** (the first option) refuses the call, and Claude reads that you blocked it.
+  **Run it** lets it through.
+- Covered: recursive `rm`, `git push --force`, `git reset --hard`, `git clean -f`,
+  `git checkout -- .`, `git restore`, `git branch -D`, `git stash drop`/`clear`,
+  `DROP`/`TRUNCATE TABLE`, `terraform destroy`, `kubectl delete`, `docker system prune`,
+  `find -delete`, `dd` and `mkfs`.
+- When Claude Code asks you anyway (default mode), the shield adds what the command deletes to its
+  dialog and asks nothing itself.
+- With no one to answer (`claude -p`, CI), the command is blocked. Turn **Shield** off for unattended
+  runs.
+
+## /pet: session stats
+
+Type `/pet` to open a pane with what this session did; `/pet` again closes it.
+
+```text
+Session    1h12m · 14 turns
+Tools      96 calls: 31 read · 12 search · 18 edit · 33 bash · 2 agent · 3 failed
+Files      22 read · 9 edited
+Tests      6 runs: 4 passed · 2 failed · 1 boss beaten
+Shield     2 asked: 1 blocked · 1 ran
+Burn       MP 9%/h · context 41% used
+```
+
+File names stay out unless **Name files and commands** is on.
 
 ## Make it yours
 
@@ -119,6 +166,8 @@ In a session, run `/plugin configure oxen-pet@oxen-pet`.
 | Name files and commands | **off** | The status line names the file, pattern, command, host, or search query a tool works on. |
 | Subagent minis | on | A mini behind the pet for each running subagent. |
 | Cache timer | `1h` | How long the HUD counts the prompt cache warm after a turn: `1h`, `5m`, or `off`. |
+| Shield | on | Ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
+| Bug boss | on | A failed test run brings a bug boss into the band. |
 
 From a shell:
 
@@ -135,6 +184,10 @@ oxen-pet runs inside your Claude Code session, so it is built to do as little as
 - **No network requests, no processes, no environment variables.** The shipped code is checked for
   each of these before every push; the commands are in [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md).
 - **No tokens spent.** The HUD reads the same usage figures as the status line. It never calls the model.
+- **The shield reads, it never runs.** It matches the command's text and counts files under an `rm`
+  target with the file system's own listing, never following a symbolic link. It refuses a call only
+  on your **Block it**, or when no one can answer. If the shield itself fails, Claude Code's own
+  decision stands.
 - **Nothing on screen you did not choose.** File names and commands stay out of the status line
   unless you turn on **Name files and commands**, so a shared screen or a recording shows none.
 - **One guarded file write.** The theme preview writes only `oxen-pet-preview*.html` files, and
@@ -170,8 +223,18 @@ match. Once it reads `cache cold`, the next message rebuilds the cache and costs
 <details>
 <summary><b>Where does it show?</b></summary>
 
-In any terminal with 24-bit color. The Desktop app's Code tab shows the pet, without the HUD. The VS
-Code chat panel, `claude -p`, and cloud sessions do not show it.
+In any terminal with 24-bit color, and in the Desktop app's Code tab, where the pet, its scene, the
+boss and the HUD draw as SVG. The `/pet` pane shows on every surface that shows panes. The VS Code
+chat panel, `claude -p`, and cloud sessions do not show the band.
+</details>
+
+<details>
+<summary><b>Is it safe to run Claude Code in bypass permissions mode?</b></summary>
+
+Safer with the shield: a destructive Bash command waits for your answer instead of running. It is a
+pattern match, not a sandbox, so it can miss a command spelled in a way it does not know (a script
+that deletes files, say). Keep your work committed, and use Claude Code's own permission rules for
+anything that must never run.
 </details>
 
 <details>
@@ -179,7 +242,7 @@ Code chat panel, `claude -p`, and cloud sessions do not show it.
 
 oxen-pet is a fork of [pixel-pet](https://github.com/Namenomeaning/pixel-pet) with a security audit
 and fixes (a guarded preview write, file names hidden by default), plus the pace marks, the MP
-forecast and the prompt cache timer. What each version changed is in [`CHANGELOG.md`](CHANGELOG.md).
+forecast, the prompt cache timer, the shield, the bug boss, the `/pet` pane and the desktop HUD. What each version changed is in [`CHANGELOG.md`](CHANGELOG.md).
 </details>
 
 ## Update
@@ -210,7 +273,10 @@ plugins/oxen-pet/                 the plugin: a Claude Code mod
   hooks/preview.ts                writes the preview page
   hooks/previewPath.ts            where preview_theme may write
   hooks/status.ts                 the status line
-  hooks/hud.ts                    the HP, MP, and ST bars, the pace marks, and the cache timer
+  hooks/hud.ts                    the HP, MP, and ST bars, the pace marks, the cache timer, the low-context alert
+  hooks/guard.ts                  the shield: which commands destroy work, and the question it asks
+  hooks/boss.ts                   the bug boss: test runs, hits, and its drawing
+  hooks/stats.ts                  what the /pet pane counts
   hooks/minis.ts                  a mini per subagent
   hooks/settings.ts               reads the settings
   hooks/*.test.ts                 the tests, one file per module
@@ -242,5 +308,5 @@ mod's own modules: no screen capture and no tokens. Contributor rules are in [`C
 [MIT](LICENSE). Original work © 2026 halluqinate ([pixel-pet](https://github.com/Namenomeaning/pixel-pet));
 fork changes © 2026 NhonNguyen.
 
-<sub>Keywords: Claude Code plugin, Claude Code mod, Claude Code statusline, Claude Code HUD, usage tracker,
+<sub>Keywords: Claude Code plugin, Claude Code mod, Claude Code statusline, Claude Code HUD, bypass permissions guard, rm -rf protection, usage tracker,
 rate limit monitor, context window, prompt cache, terminal pet, pixel art, Anthropic Claude.</sub>

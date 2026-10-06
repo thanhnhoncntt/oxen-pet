@@ -18,21 +18,25 @@ of from a third-party marketplace that updates itself.
 From `claude plugin validate plugins/oxen-pet --strict`:
 
 ```
-calls: $.agent.list, $.clock.every, $.clock.now, $.fs.read, $.fs.stat, $.fs.write, $.session.usage,
-       $.state.get, $.state.set, $.store.delete, $.store.get, $.store.set, $.tool.register,
-       $.ui.invalidate, $.ui.resolve, $.ui.status, $.ui.toast
+calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, $.fs.read, $.fs.stat,
+       $.fs.write, $.session.usage, $.state.get, $.state.set, $.store.delete, $.store.get, $.store.set,
+       $.tool.register, $.ui.ask, $.ui.close, $.ui.invalidate, $.ui.open, $.ui.panes, $.ui.resolve,
+       $.ui.status, $.ui.toast
 ```
 
 | Call | Used for |
 | --- | --- |
 | `$.fs.read` | `assets/slime.json` under the plugin's own root |
-| `$.fs.stat` | `preview_theme` only: where the path leads, before writing |
+| `$.fs.stat` | `preview_theme`: where the path leads, before writing. The shield: what an `rm` target is |
+| `$.fs.list` | The shield only: counts the files under an `rm` target, up to 2000 files, 8 folders deep and 300 folders; never follows a symbolic link. Names are counted, never kept |
 | `$.fs.write` | `preview_theme` only, to an absolute path whose file name is `oxen-pet-preview*.html` with no `..`, in a folder that already exists, and that is not a symbolic link and lands on an `oxen-pet-preview*.html` file (`hooks/previewPath.ts`) |
 | `$.session.usage` | context and rate-limit numbers for the HUD |
 | `$.agent.list` | count of running subagents, for the minis |
 | `$.store.*` | the theme `set_theme` keeps |
 | `$.state.*` | the pet's animation state |
 | `$.tool.register` | `get_theme`, `preview_theme`, `set_theme` |
+| `$.ui.ask` | The shield's Block it / Run it question |
+| `$.command.register`, `$.ui.open`, `$.ui.close`, `$.ui.panes` | `/pet` and its pane |
 
 `tool.call` sees every tool's input. It keeps only a short target (file name, pattern, first 24
 characters of a Bash command, host, query) for the status line, and only when the **Name files and
@@ -75,6 +79,14 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
    checks above cover `plugins/oxen-pet` alone on purpose.
 5. 1.0.2 adds a `turn.complete` hook that only observes: it notes when the main thread's turn ended,
    for the cache timer, and passes the turn through unchanged.
+6. 1.1.0 adds the mod's first hook that can refuse a call: `tool.check` on Bash (the shield). It
+   only changes Claude Code's verdict when that verdict is `allow` and the command matches a
+   destructive pattern in `hooks/guard.ts`; it then answers `allow` only on the user's **Run it**,
+   and `deny` otherwise, including when no one can answer. A `deny` from Claude Code passes through;
+   an `ask` gets only a new reason. A query (`$.tool.check` with no `tool_use_id`) is never asked
+   about. If the classifier throws, Claude Code's verdict stands. **Shield** (`guard`) turns it off.
+   The `tool.call` hook also reads a Bash command to tell a test run (`hooks/boss.ts`) and keeps
+   counts, never the command, for `/pet`.
 
 ## Taking an upstream change
 

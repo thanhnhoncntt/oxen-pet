@@ -3,6 +3,33 @@
 What each version of oxen-pet adds or changes for a user. Installed copies update only when the
 version in `plugins/oxen-pet/.claude-plugin/plugin.json` changes; see README's Update section.
 
+## 1.1.0 — 2026-10-06
+
+A shield, a boss, a stats pane, and the HUD on the desktop.
+
+- **Shield.** Before a destructive Bash command runs *unasked* (bypass or auto mode, or an allow
+  rule), the pet raises a shield and asks **Block it** / **Run it**. The question names what the
+  command does and how many files each `rm` target holds (`build: 132 files`). It covers recursive
+  `rm`, `git push --force`, `git reset --hard`, `git clean -f`, `git checkout -- .`, `git restore`,
+  `git branch -D`, `git stash drop`/`clear`, `DROP`/`TRUNCATE TABLE`, `terraform destroy`,
+  `kubectl delete`, `docker system prune`, `find -delete` and `dd`/`mkfs`. With no one to answer
+  (`claude -p`), the command is blocked. When Claude Code asks anyway, the shield only adds what the
+  command deletes to its dialog. New setting **Shield** (`guard`, on by default).
+- **Bug boss.** A failed test run (`npm test`, `pytest`, `go test`, `cargo test`, and other common
+  runners) brings a bug boss into the band, with a pip for each failed run. The next run that passes
+  defeats it: it flashes, puffs away, and the pet cheers. A run piped into another command
+  (`npm test | tail`) reads as passed. New setting **Bug boss** (`boss`, on by default).
+- **`/pet` pane.** Opens or closes a pane with the session's length and turns, tool calls by motion,
+  files read and edited (names only with **Name files and commands** on), subagents, test runs and
+  bosses beaten, the shield's answers, and MP's burn rate per hour.
+- **Low-context alert.** As HP drops under 20%, a toast suggests `/compact` or a hand-off, and the
+  pet says so in red, once until HP climbs back to 30%. `⚠ HP` and `/compact` now show under 20%
+  (was 10%).
+- **Desktop.** The Desktop app's Code tab now shows the HUD under the pet, each bar drawn as SVG,
+  and a theme's scene, as one SVG band.
+- The preview page shows the new `guard` motion and the boss fight. Themes can set `props.guard`,
+  `lines.guard` and `lineColors.guard`.
+
 ## 1.0.2 — 2026-10-05
 
 HUD readings that say how much is left, not only how much is used.

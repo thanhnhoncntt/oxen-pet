@@ -247,8 +247,8 @@ export const register: Register = (on, options) => {
       const isGuarding = guarding > 0 || (shield !== undefined && t < shield.until)
       await update($, anim, a => {
         const moved = step(a, { isWorking, activeTools, activeMode, activeTarget, lastToolAt, room, obstacles, trail, guarding: isGuarding }, t, settings)
-        // Minis hop on every tick, so they keep the redraw rate up while the pet idles.
-        const slowBeat = minis.length > 0 ? undefined : SLOW_BEATS[moved.mode]
+        // Minis and the boss move on every tick, so they keep the redraw rate up while the pet idles.
+        const slowBeat = minis.length > 0 || bossRoom > 0 ? undefined : SLOW_BEATS[moved.mode]
         return slowBeat !== undefined && moved.mode === a.mode && beat % slowBeat !== 0 ? a : moved
       })
     })
