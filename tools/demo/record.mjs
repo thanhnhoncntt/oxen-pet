@@ -18,7 +18,7 @@ registerHooks({ resolve: (spec, ctx, next) => next(/^\.\.?\//.test(spec) && !/\.
 const plugin = new URL('../../plugins/oxen-pet/', import.meta.url)
 const hook = name => import(new URL(`hooks/${name}.ts`, plugin).href)
 const { TICK_MS, fail, step } = await hook('anim')
-const { BAR_W, HUD_WINDOW_W, cacheLeftMin, frameColor, hudRows, mood, windowEdges } = await hook('hud')
+const { BAR_W, HUD_WINDOW_W, ROW_GAP, cacheLeftMin, frameColor, hudRowWidth, hudRows, mood, windowEdges } = await hook('hud')
 const { minisOnScreen } = await hook('minis')
 const { animate, readTheme } = await hook('theme')
 const { BODY_W, MAX_MINIS, compose, encodeCells, trailWidth } = await hook('pixels')
@@ -77,7 +77,8 @@ function hudAt(t) {
 
 // ---- the screen, as register.tsx lays it out ----
 
-const COLS = 92
+const COLS = 100
+let hudShot = { w: HUD_WINDOW_W, rows: 5 } // the HUD window screen() drew last: its width and rows
 const ROWS = 10 // the band's height in cells
 const STATUS_ROOM = 20
 const LEAVE_MS = 1500
@@ -135,10 +136,31 @@ function screen(t, a, body, boss) {
   ops.push({ kind: 'text', row: prompt + 2, col: 0, text: '─'.repeat(COLS), color: '#4b5068' })
   ops.push({ kind: 'text', row: prompt + 3, col: 2, text: '⏵⏵ auto mode on (shift+tab to cycle)', color: '#6b7499' })
 
-  const edges = windowEdges(HUD_WINDOW_W)
   const frame = frameColor(body.look.hud)
-  const rows = hudRows(hud, body.look.hud)
   const top = prompt + 4
+  // The default row layout, one line with no window, as register.tsx draws it when the terminal has the room; else stacked.
+  const inRow = hudRows(hud, body.look.hud, true)
+  const rowW = hudRowWidth(inRow)
+  if (COLS >= rowW + 2) {
+    let col = 1
+    inRow.forEach((r, k) => {
+      if (k > 0) {
+        ops.push({ kind: 'text', row: top, col, text: ROW_GAP, color: frame })
+        col += ROW_GAP.length
+      }
+      ops.push({ kind: 'text', row: top, col, text: `${r.label} `, color: r.color })
+      col += [...`${r.label} `].length
+      ops.push({ kind: 'raster', row: top, col, columns: r.bar.w, cells: r.cells })
+      col += r.bar.w
+      ops.push(...spansOps(top, col, r.parts))
+      col += r.parts.reduce((n, p) => n + [...p.text].length, 0)
+    })
+    hudShot = { w: rowW, rows: 1 }
+    return ops
+  }
+  const edges = windowEdges(HUD_WINDOW_W)
+  const rows = hudRows(hud, body.look.hud)
+  hudShot = { w: HUD_WINDOW_W, rows: rows.length + 2 }
   ops.push({ kind: 'text', row: top, col: 1, text: edges.top, color: frame })
   rows.forEach((r, i) => {
     const row = top + 1 + i
@@ -209,7 +231,7 @@ const CW = 9 // px per cell across; a cell is twice as tall, so a pet pixel is s
 const CH = 18
 const PAD = 16
 const BAR = 28 // the window's title bar
-const SCREEN_ROWS = 2 + TRANSCRIPT_ROWS + ROWS + 4 + 5 + 1
+const SCREEN_ROWS = 2 + TRANSCRIPT_ROWS + ROWS + 4 + 1 + 1 // the HUD is one line
 const HUD_ROW = 2 + TRANSCRIPT_ROWS + ROWS + 4 // the HUD window's top edge, as screen() lays it out
 const W = PAD * 2 + COLS * CW
 const H = BAR + PAD + SCREEN_ROWS * CH
@@ -304,7 +326,7 @@ try {
 
   // The HUD window from the last frame. Its edges are half blocks, which leaves half a cell above and below it.
   const hudTop = BAR + PAD + HUD_ROW * CH
-  const crop = `crop=${(HUD_WINDOW_W + 2) * CW}:${5 * CH}:${PAD - CW}:${hudTop}`
+  const crop = `crop=${(hudShot.w + 2) * CW}:${hudShot.rows * CH}:${PAD - CW}:${hudTop}`
   const last = join(dir, `${String(frames.length - 1).padStart(4, '0')}.png`)
   const still = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', last, '-vf', crop, hudOut], { stdio: 'inherit' })
   if (still.error || still.status !== 0) throw new Error('ffmpeg failed on the HUD still')

@@ -4,7 +4,7 @@ import { encodeCells } from './pixels'
 import type { Canvas } from './pixels'
 
 export const BAR_W = 20 // cells; a bar is one cell row, two pixels tall
-export const ROW_BAR_W = 12 // a bar's cells when the HUD lays its bars in a row
+export const ROW_BAR_W = 10 // a bar's cells when the HUD lays its bars in a row
 
 // The window frame around the HUD. Blue, not white, so it shows on a light terminal too.
 export const FRAME_COLOR = '#5aa9ff'
@@ -277,9 +277,9 @@ export function windowEdges(width: number) {
 /** The cells between bars laid in a row. */
 export const ROW_GAP = ' │ '
 
-/** The window's width in cells, sides included, for `rows` laid in a row: each label, bar and text, the gaps, and a cell of padding each side. */
+/** The width in cells of `rows` laid in a row, one line with no window: each label, bar and text, and the gaps between them. */
 export const hudRowWidth = (rows: HudRow[]) =>
-  rows.reduce((n, r) => n + [...r.label].length + 1 + r.bar.w + r.parts.reduce((m, p) => m + [...p.text].length, 0), 0) + ROW_GAP.length * (rows.length - 1) + 4
+  rows.reduce((n, r) => n + [...r.label].length + 1 + r.bar.w + r.parts.reduce((m, p) => m + [...p.text].length, 0), 0) + ROW_GAP.length * (rows.length - 1)
 
 /** The HUD window's width in cells, sides included: room for a label, a bar and the longest row's text. */
 export const HUD_WINDOW_W = 64

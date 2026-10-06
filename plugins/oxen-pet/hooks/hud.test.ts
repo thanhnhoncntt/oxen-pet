@@ -172,8 +172,8 @@ test('in a row each bar is shorter and keeps only its reading and one short deta
   expect(low.map(text)).toEqual(['⚠ HP 12%  /compact', '✦ MP 30%  empty ~43m'])
 })
 
-test('a row is as wide as its bars and text, with room between them and the frame', () => {
+test('a row has no window: it is as wide as its labels, bars, text, and the gaps between them', () => {
   const rows = hudRows({ hp: 100, cacheMin: 52, mp: 92, mpResetsInMin: 129, st: 74, stResetsInMin: 3540 }, {}, true)
   const content = rows.reduce((n, r) => n + [...r.label].length + 1 + ROW_BAR_W + r.parts.reduce((m, p) => m + [...p.text].length, 0), 0)
-  expect(hudRowWidth(rows)).toBe(content + 3 * (rows.length - 1) + 4)
+  expect(hudRowWidth(rows)).toBe(content + 3 * (rows.length - 1))
 })

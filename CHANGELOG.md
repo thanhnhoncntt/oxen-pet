@@ -3,6 +3,14 @@
 What each version of oxen-pet adds or changes for a user. Installed copies update only when the
 version in `plugins/oxen-pet/.claude-plugin/plugin.json` changes; see README's Update section.
 
+## 1.1.1 — 2026-10-06
+
+- **The HUD is one line by default.** HUD layout `row` is now the default, and it draws without a
+  frame: label, bar, reading and one short detail per bar, the bars apart by a `│` in the frame's
+  color. It takes one row under the prompt instead of five. Row bars are 10 cells, so the line fits
+  about 90 columns; a narrower terminal gets the framed stacked HUD. Set HUD layout to `stacked` for
+  the window with every detail.
+
 ## 1.1.0 — 2026-10-06
 
 Luffy, a shield, a boss, a stats pane, and the HUD on the desktop.

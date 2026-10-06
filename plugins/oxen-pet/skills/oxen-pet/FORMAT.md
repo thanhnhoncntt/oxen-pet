@@ -180,7 +180,7 @@ The HUD is the window below the prompt, with up to three bars:
 "hud": { "frame": "#c8681f", "hp": { "label": "LIVES", "color": "#f0903c", "fill": ["#8a4a0c", "#ffc27a"] }, "st": false }
 ```
 
-- `frame` is the window frame's color. Default `#5aa9ff`.
+- `frame` is the color of the stacked HUD's window frame, and of the `│` between bars in the row HUD. Default `#5aa9ff`.
 - A bar's look is `{ "label", "color", "fill" }`, each optional.
   - `label` is up to 6 characters, each one cell wide, so the bars line up. A custom label stays as written, where the default `♥ HP` turns to `⚠ HP` under 20 %.
   - `color` is the label's color.

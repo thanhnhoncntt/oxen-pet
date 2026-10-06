@@ -72,7 +72,7 @@ function stubEngine(on: On, clock?: MockClock, use: SessionUsage = usage) {
   return store
 }
 
-test('the band draws the pet, and the hint line draws the HUD in its window', async ($, on) => {
+test('the band draws the pet, and the hint line draws the stacked HUD in its window', { options: { hudLayout: 'stacked' } }, async ($, on) => {
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
@@ -240,7 +240,7 @@ test('the cache timer turned off shows nothing after a turn', { options: { cache
   expect(tree).not.toContain('cache')
 })
 
-test('the desktop band draws the pet as an SVG, and the HUD under it with each bar as an SVG', async ($, on) => {
+test('the desktop band draws the pet as an SVG, and the stacked HUD under it with each bar as an SVG', { options: { hudLayout: 'stacked' } }, async ($, on) => {
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
 
@@ -483,6 +483,9 @@ test('the row layout draws the bars side by side in one window row, and stacks t
   expect(tree).toContain('"key":"row"')
   expect(tree).toContain(' │ ')
   expect(tree).toContain('♥ HP')
+  // One line: no window edges above or below it.
+  expect(tree).not.toContain('▄▄▄')
+  expect(tree).not.toContain('▀▀▀')
   await wide.unmount()
 
   const narrow = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 40, rows: 40 }, ...HINT })
@@ -496,7 +499,8 @@ test('on the desktop the row layout lays the HUD\'s bars side by side too', { op
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
   const tree = await bandText($, 'desktop')
-  expect(tree).toContain('"flexDirection":"row","alignSelf":"flex-start"')
+  expect(tree).toContain('"key":"hud","flexDirection":"row"')
+  expect(tree).not.toContain('"borderStyle"')
   expect(tree).toContain(' │ ')
 })
 
@@ -562,4 +566,22 @@ test('a custom theme that no longer reads gives way to the default, with a toast
   await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
   expect(await bandText($, 'desktop')).toContain('"alt":"block, idle"')
   expect(((store.get('toasts') as string[]) ?? []).join()).toContain('broken')
+})
+
+test('the HUD is a row by default, where the terminal has the room', async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const hint = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 120, rows: 40 }, ...HINT })
+  expect(JSON.stringify(await hint.drawn())).toContain('"key":"row"')
+  await hint.unmount()
+})
+
+test('HUD layout stacked keeps one bar per line', { options: { hudLayout: 'stacked' } }, async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  const hint = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 120, rows: 40 }, ...HINT })
+  const tree = JSON.stringify(await hint.drawn())
+  expect(tree).not.toContain('"key":"row"')
+  expect(tree).toContain('"key":"mp"')
+  await hint.unmount()
 })

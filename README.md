@@ -11,7 +11,7 @@ so you always know how much is left. In bypass mode, its **shield** stops destru
 until you say so, and failing tests summon a **bug boss** to beat.
 
 [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757?style=flat-square)](https://code.claude.com/docs/en/plugins/mods/interface)
-[![Version](https://img.shields.io/badge/version-1.1.0-5aa9ff?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.1-5aa9ff?style=flat-square)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4ade80?style=flat-square)](LICENSE)
 [![No network](https://img.shields.io/badge/network-none-a78bfa?style=flat-square)](SECURITY-AUDIT.md)
 [![Audited fork](https://img.shields.io/badge/fork-audited-fbbf24?style=flat-square)](SECURITY-AUDIT.md)
@@ -98,9 +98,9 @@ limit runs low. With **Name files and commands** on, the status line also names 
 
 ## The HUD
 
-<img src="docs/images/hud.png" alt="The oxen-pet HUD: HP 78% with the prompt cache warm for an hour, MP 88% with 15% to spare, ST 81% with 38% to spare" width="594">
+<img src="docs/images/hud.png" alt="The oxen-pet HUD in one line: HP 78% with the prompt cache warm for an hour, MP 88% resetting in 3h39m, ST 81% resetting in 3d0h" width="819">
 
-A pixel window below the prompt holds up to three bars. Each shows what is **left**, not what is used.
+One line below the prompt holds up to three bars. Each shows what is **left**, not what is used.
 
 | Bar | Tracks | Beside the reading |
 | --- | --- | --- |
@@ -113,11 +113,10 @@ limit were used evenly through its window. Fill to the right of the mark means y
 than the pace and can push harder. Fill to the left means you are burning faster than the window
 allows.
 
-Prefer one line? Set **HUD layout** to `row`:
-
-```text
-█ ♥ HP ▓▓▓▓▓▓▓▓▓▓░ 86%  cache 52m │ ✦ MP ▓▓▓▓▓▓▓|░░ 72%  3h33m │ ◆ ST ▓▓▓▓▓|▓░░░ 64%  3d4h █
-```
+The line shows each reading and one short detail: the cache for HP, the time to reset for MP and ST, or
+a warning in their place. For every detail in the table above, `spare` and `over` included, set
+**HUD layout** to `stacked`: a framed window with one bar per line. A terminal too narrow for the line
+(about 90 columns) gets the stacked window.
 
 HP turns yellow at 50 % or less and red at 25 % or less. As it drops under 20 %, a toast suggests
 `/compact`, or handing off to a fresh session, once until HP climbs back to 30 %. MP and ST turn red under 15 %, and show on
@@ -198,7 +197,7 @@ In a session, run `/plugin configure oxen-pet@oxen-pet`.
 | Cache timer | `1h` | How long the HUD counts the prompt cache warm after a turn: `1h`, `5m`, or `off`. |
 | Theme | `luffy` | The pet a session starts with: `luffy`, `slime`, `duck`, `alien`, or the name of one of your own. |
 | Custom folder | empty | The folder of your own `<name>.theme.json` files. Empty: `~/.claude/oxen-pet/themes`. |
-| HUD layout | `stacked` | `stacked`: one bar per line, with every detail. `row`: the three bars side by side in one line (about 96 columns), each with its reading and one short detail; back to stacked on a narrower terminal. |
+| HUD layout | `row` | `row`: the three bars in one line with no frame, each with its reading and one short detail; stacked on a terminal under about 90 columns. `stacked`: a framed window, one bar per line, with every detail. |
 | Shield | on | Ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
 | Bug boss | on | A failed test run brings a bug boss into the band. |
 

@@ -543,33 +543,24 @@ export const register: Register = (on, options) => {
     // Laid in a row when the user asked and the terminal has the room, else stacked.
     const inRow = settings.hudRow ? hudRows({ ...hud, cacheMin }, body.look.hud, true) : []
     const rowW = hudRowWidth(inRow)
+    // A row is one line with no window, the bars apart by gaps in the frame's color.
     if (inRow.length > 0 && (e.viewport === undefined || e.viewport.columns >= rowW + 2)) {
-      const edges = windowEdges(rowW)
-
       return (
         <Box flexDirection="column">
           {await next(e)}
-          <Box flexDirection="column" marginLeft={1}>
-            <Text color={frame}>{edges.top}</Text>
-            <Box key="row">
-              <Text color={frame}>{edges.side}</Text>
-              <Box width={rowW - 2} paddingX={1}>
-                {inRow.map((r, k) => (
-                  <Box key={r.key}>
-                    {k > 0 && <Text color={frame}>{ROW_GAP}</Text>}
-                    <Text color={r.color}>{r.label} </Text>
-                    <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
-                    {r.parts.map((p, i) => (
-                      <Text key={String(i)} color={p.color} bold={p.bold}>
-                        {p.text}
-                      </Text>
-                    ))}
-                  </Box>
+          <Box key="row" marginLeft={1}>
+            {inRow.map((r, k) => (
+              <Box key={r.key}>
+                {k > 0 && <Text color={frame}>{ROW_GAP}</Text>}
+                <Text color={r.color}>{r.label} </Text>
+                <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
+                {r.parts.map((p, i) => (
+                  <Text key={String(i)} color={p.color} bold={p.bold}>
+                    {p.text}
+                  </Text>
                 ))}
               </Box>
-              <Text color={frame}>{edges.side}</Text>
-            </Box>
-            <Text color={frame}>{edges.bottom}</Text>
+            ))}
           </Box>
         </Box>
       )
@@ -696,7 +687,7 @@ export const register: Register = (on, options) => {
         const rows = settings.hud && hud ? hudRows({ ...hud, cacheMin: cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, now) }, body.look.hud, settings.hudRow) : []
         const hudFrame = frameColor(body.look.hud)
         const hudBox = rows.length > 0 && (
-          <Box key="hud" flexDirection={settings.hudRow ? 'row' : 'column'} alignSelf="flex-start" borderStyle="round" borderColor={hudFrame} paddingX={1}>
+          <Box key="hud" flexDirection={settings.hudRow ? 'row' : 'column'} alignSelf="flex-start" {...(settings.hudRow ? {} : { borderStyle: 'round', borderColor: hudFrame, paddingX: 1 })}>
             {rows.map((r, k) => (
               <Box key={r.key} alignItems="center">
                 {settings.hudRow && k > 0 && <Text color={hudFrame}>{ROW_GAP}</Text>}
