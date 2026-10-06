@@ -58,7 +58,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - `preview_theme` writes only through `previewPathError` in `previewPath.ts`. Do not add another `$.fs.write`; a new write goes through a guard with its own test, and in `SECURITY-AUDIT.md`.
 - `register.tsx` is the adapter between Claude Code's events and the modules. Logic goes in a module with its own test, not in a hook.
 - `tools/demo/record.mjs` lays out the band and the HUD as `register.tsx` does, with copies of its layout constants. A layout change in `register.tsx` goes in both; then run it and commit the new `docs/images/demo.gif` and `hud.png`.
-- `tools/demo/meter.mjs` draws oxen-meter's pane as its `register.tsx` does, and takes every line the meter shows from its modules (`paneRows`, `resume.ts`, `hookGuard.ts`, `reportText`). A change to those texts or to the pane's layout means running it, committing the new `docs/images/meter-*`, and updating the pane's text block in the meter's README (`--text` prints it).
+- `tools/demo/meter.mjs` draws oxen-meter's pane as its `register.tsx` does, and takes every line the meter shows from its modules (`paneRows`, `resume.ts`, `hookGuard.ts`, `reportText`). A change to those texts or to the pane's layout means running it and committing the new `docs/images/meter-*`. The text blocks in the meter's README are real captures, each with its version and date: a change to what they show means capturing them again, never editing them by hand.
 
 ## Updates must not break
 

@@ -59,8 +59,9 @@ quota each session used, and exports anonymized numbers for a team report. A com
 claude plugin install oxen-meter@oxen-pet
 ```
 
-Then type `/meter`. The [oxen-meter guide](plugins/oxen-meter/README.md) has the demo, the cold resume guard, setting
-up Codex and Devin, reading the report, the team report, and what it records.
+Then type `/meter`. The picture is from a scripted demo; the [oxen-meter guide](plugins/oxen-meter/README.md) has real
+captures from a live machine beside it: the pane, the cold resume question, the Codex and Devin hooks, and a month's
+report. It also covers setting up Codex and Devin, reading the report, the team report, and what it records.
 
 ## Install
 
@@ -360,7 +361,7 @@ tools/meter/lib/                  its parts: files and guards, imports, hooks, s
 tools/meter/aggregate.mjs         builds the team report from exports (developer tool)
 tools/preview/build.mjs           writes the preview of a theme file
 tools/demo/record.mjs             records docs/images/demo.gif and hud.png (developer tool, never shipped)
-tools/demo/meter.mjs              records docs/images/meter-demo.gif, meter-pane.png and meter-report.png (the same)
+tools/demo/meter.mjs              records docs/images/meter-demo.gif and meter-pane.png (the same)
 docs/                             design spec and plan of the fork, and the README images
 ```
 

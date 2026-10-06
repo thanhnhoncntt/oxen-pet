@@ -2,8 +2,8 @@
 // CLI prompt, and the companion's report. Every line the meter shows comes from its own modules, given the session's
 // records: the pane's rows (paneRows), the cold resume question (resumeRisk, resumeQuestion), the Codex and Devin
 // hooks' answers (idleRisk, promptAnswer), and the report (summarize, reportText). The tools' screens around them follow
-// captures of Claude Code 2.1.291, Codex CLI 0.160.1 and Devin CLI 3000.11.3. Also writes meter-pane.png and
-// meter-report.png beside the GIF: the pane, and the report.
+// captures of Claude Code 2.1.291, Codex CLI 0.160.1 and Devin CLI 3000.11.3. Also writes meter-pane.png beside the
+// GIF: the pane. The numbers are made up; the guide's text blocks are real captures.
 // Run: node tools/demo/meter.mjs [out.gif] (Node 22.18 or later). Needs Google Chrome, or its path in CHROME, and
 // ffmpeg on the PATH. `--text` prints the key frames as text instead, with neither.
 //
@@ -33,7 +33,6 @@ const args = process.argv.slice(2)
 const asText = args.includes('--text')
 const out = args.find(a => !a.startsWith('--')) ?? fileURLToPath(new URL('../../docs/images/meter-demo.gif', import.meta.url))
 const paneOut = join(dirname(out), 'meter-pane.png')
-const reportOut = join(dirname(out), 'meter-report.png')
 const chromePath = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 if (!asText && !existsSync(chromePath)) {
   console.error(`No Chrome at ${chromePath}. Set CHROME to its path.`)
@@ -481,7 +480,6 @@ function frames() {
   for (let t = 0; t < CODEX_MS; t += FRAME_MS) all.push(codexFrame(t))
   for (let t = 0; t < DEVIN_MS; t += FRAME_MS) all.push(devinFrame(t))
   for (let t = 0; t < REPORT_MS; t += FRAME_MS) all.push(reportFrame(t))
-  stills.report = { index: all.length - 1 }
   return { all, stills }
 }
 
@@ -613,11 +611,10 @@ try {
   }
   ffmpeg('-framerate', String(1000 / FRAME_MS), '-i', join(dir, '%04d.png'), '-vf', 'split[a][b];[a]palettegen=max_colors=96:stats_mode=full[p];[b][p]paletteuse=dither=none:diff_mode=rectangle', out)
   console.log(`wrote ${out}: ${all.length} frames, ${W}×${H}`)
-  // The pane alone, its box and the rows in it; and the report, the whole terminal.
+  // The pane alone: its box and the rows in it.
   const p = stills.pane
   ffmpeg('-i', png(p.index), '-vf', `crop=${COLS * CW + CW}:${p.rows * CH}:${PAD - CW / 2}:${BAR + PAD + p.top * CH}`, paneOut)
-  copyFileSync(png(stills.report.index), reportOut)
-  console.log(`wrote ${paneOut} and ${reportOut}`)
+  console.log(`wrote ${paneOut}`)
 } finally {
   await browser.close()
   rmSync(dir, { recursive: true, force: true, maxRetries: 5 })

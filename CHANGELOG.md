@@ -3,6 +3,19 @@
 What each version of oxen-pet, and of oxen-meter, adds or changes for a user. Installed copies update
 only when the version in the plugin's `.claude-plugin/plugin.json` changes; see README's Update section.
 
+## oxen-meter 1.1.1 — 2026-10-06
+
+Found by installing it on a real machine and running the guide's commands as written.
+
+- **The team report makes its `--out` folder.** `aggregate.mjs --out report/` stopped with a stack trace when
+  `report/` was not there yet.
+- **Cost where it is known.** Codex and Devin report no cost, so a team or a person with no Claude Code session no
+  longer shows `$0.00`, which read as free.
+- **`setup --write` keeps the backup private.** A `600` hook config was copied to a backup anyone on the machine could
+  read; the backup now gets the config's own mode.
+- **The guide quotes real captures**: the pane, the cold resume question, the Codex and Devin hooks, and a month's
+  report from one laptop, each with its version and date. The scripted demo stays, marked as such.
+
 ## 1.1.3 — 2026-10-06
 
 - **The shield is off by default.** In bypass mode it asked about every destructive command, which is more than most

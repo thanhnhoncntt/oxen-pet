@@ -9,14 +9,15 @@ See the cache hit rate of every session, subagent and model while it runs. Get a
 numbers across a team to see where its cost and quota go.
 
 [![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757?style=flat-square)](https://code.claude.com/docs/en/plugins/mods/interface)
-[![Version](https://img.shields.io/badge/version-1.1.0-5aa9ff?style=flat-square)](../../CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.1-5aa9ff?style=flat-square)](../../CHANGELOG.md)
 [![Codex CLI and Devin CLI](https://img.shields.io/badge/Codex%20%C2%B7%20Devin-hooks-3fa66b?style=flat-square)](#codex-cli-and-devin-cli)
 [![No network](https://img.shields.io/badge/network-none-a78bfa?style=flat-square)](../../SECURITY-AUDIT.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4ade80?style=flat-square)](../../LICENSE)
 
 <img src="../../docs/images/meter-demo.gif" alt="oxen-meter: the /meter pane counts down a subagent's cache from warm to cold while it waits for Codex, Claude Code asks before resuming it, Codex and Devin show the companion's hook before a prompt into a cold thread, and the report adds up a week of all three tools" width="860">
 
-<sub>A scripted session played through the meter's own modules: every line the meter shows is its own output.</sub>
+<sub>A scripted session played through the meter's own modules: every line the meter shows is its own output, but the
+numbers are made up. The screens quoted in this guide are real captures from a live machine.</sub>
 
 [Install](#install) · [Quick start](#quick-start) · [The pane](#the-pane) · [The guard](#the-cold-resume-guard) · [Codex and Devin](#codex-cli-and-devin-cli) · [The report](#the-report) · [Team report](#the-team-report) · [Settings](#settings) · [Privacy](#what-it-records-and-what-it-does-not) · [FAQ](#faq)
 
@@ -63,7 +64,8 @@ claude plugin install oxen-meter@oxen-pet
 ```
 
 Start a new session, or run `/reload-plugins` in an open one. The meter records from the next model request on. It
-draws no pet and no band, so it runs beside [oxen-pet](../../README.md) or alone.
+draws no pet and no band, so it runs beside [oxen-pet](../../README.md) or alone. Claude Code may say that 11 options
+are not yet set: each has a default, so there is nothing to do until you want another value.
 
 ## Quick start
 
@@ -81,19 +83,21 @@ draws no pet and no band, so it runs beside [oxen-pet](../../README.md) or alone
 
 `/meter` opens a pane with this session's numbers; `/meter` again closes it. It redraws every 15 seconds.
 
-<img src="../../docs/images/meter-pane.png" alt="The /meter pane: the cache hit rate and token counts, steps, token equivalent and TTLs, the main thread warm for 53 more minutes, a subagent that sat 7 minutes shown cold in red, where the session is saved, the handoffs, and the meter's own hook timings" width="860">
+<img src="../../docs/images/meter-pane.png" alt="The /meter pane from the scripted demo: the cache hit rate and token counts, steps, token equivalent and TTLs, the main thread warm for 53 more minutes, a subagent that sat 7 minutes shown cold in red, where the session is saved, the handoffs, and the meter's own hook timings" width="860">
+
+The picture is from the scripted demo. Here is the top of a real pane, captured in Claude Code 2.1.291 with Opus 5.5 on
+2026-10-06, after a subagent that sat 7 minutes was resumed anyway and wrote its context again:
 
 ```text
-Cache                 hit 82% · read 1.1M · written 251K · uncached 204 · output 9.1K
-Steps                 11 main · 6 subagent
-Token eq.             557K: main 322K · subagent 235K
-TTL                   main 1h (default: 10 warm up to 4m) · subagent 5m (default: 5 warm up to 7s)
-main                  opus-5-5 · ctx 111K · read 7m ago · warm ~53m
-general-purpose 3f2a  sonnet-5-5 · ctx 140K · read 7m ago · cold
-Files                 saved 6m ago to /Users/you/.claude/oxen-meter/sessions
-Handoffs              1 Agent (1 background) · 1 Codex (1 background)
-turn.step             0.11 ms mean · p95 0.21 · max 0.21 · 17 calls
-tool.call             0.04 ms mean · p95 0.05 · max 0.05 · 2 calls
+╭───────────────────────────────────────────────────────────────────────────────────✕─╮
+│ Cache      hit 74% · read 530K · written 187K · uncached 24 · output 1.0K           │
+│ Steps      7 main · 2 subagent                                                      │
+│ Token eq.  335K: main 173K · subagent 162K                                          │
+│ TTL       main 1h (inferred: 6 warm up to 6m) · subagent 5m (inferred: 1 cold from  │
+│           7m)                                                                       │
+│ Cold       1 cold resume: 74K eq beyond a read                                      │
+│ main       opus-5-5 · ctx 86K · read 0m ago · warm ~1h00m                           │
+╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 | Row | What it says |
@@ -116,14 +120,16 @@ Before Claude sends a message (SendMessage) that resumes an agent idle past nine
 **Cold resume tokens** of context, the **Cold resume guard** setting decides:
 
 - **warn** (default): a toast says what resuming costs; the message goes.
-- **ask**: Claude Code asks you, as in the GIF:
+- **ask**: Claude Code asks you. Captured live (Claude Code 2.1.291, Sonnet 5.5, 2026-10-06):
 
   ```text
    ☐ Cold resume
-  │ oxen-meter: general-purpose 3f2a has sat 7m, past its 5m cache. Resuming it writes its 140K
-  │ context again: about 161K token equivalents. Spawn a fresh agent with a short handoff instead?
+  │ oxen-meter: general-purpose ea47 has sat 10m, past its 5m cache. Resuming it writes
+  │ its 64K context again: about 74K token equivalents. Spawn a fresh agent with a short
+  │ handoff instead?
   ❯ 1. Spawn a fresh agent
     2. Resume anyway
+    3. Type something.
   ```
 
   **Spawn a fresh agent** keeps the message back, and Claude reads that it should start a fresh agent with a short
@@ -153,8 +159,8 @@ node $M setup devin --write    # the same in the "hooks" of ~/.config/devin/conf
 
 Once imported, `/meter report` and `/meter export` in Claude Code count Codex and Devin too. The companion takes your
 oxen-meter settings from Claude Code (`~/.claude/settings.json`) and writes to the same data folder. An import reads
-each Codex file on from where the last one stopped, so it stays quick: 2.1 GB of rollouts took 2.7 seconds the first
-time.
+each Codex file on from where the last one stopped, so it stays quick: on one laptop, 30 days of rollouts (229 files,
+2.1 GB) and Devin's 560 MB database took about 5 seconds the first time, and nothing the next.
 
 | | Claude Code | Codex CLI | Devin CLI |
 | --- | --- | --- | --- |
@@ -168,27 +174,38 @@ time.
 ### The hooks
 
 `setup` prints what it would add; `--write` adds it after a yes, beside your own hooks, and keeps the old file as
-`….oxen-meter.bak`. It never touches `~/.claude/settings.json`. Codex runs a new hook only once you trust it: open
-Codex and run `/hooks`. The hooks run the Node that ran `setup`; after you upgrade Node, run `setup` again.
+`….oxen-meter.bak`, as private as the file it keeps. With no terminal to answer (a script, an agent), add `--yes`. It
+never touches `~/.claude/settings.json`. Codex runs a new hook only once you trust it: open Codex, run `/hooks`, and
+trust the oxen-meter entries. The hooks run the Node that ran `setup`; after you upgrade Node, run `setup` again.
 
 - **Codex.** A prompt into a thread that sat past **Cold after** (60 minutes by default) with at least **Cold resume
-  tokens** of context shows a line that the model never sees:
+  tokens** of context shows a line that the model never sees. Captured live (Codex CLI 0.160.1, gpt-6.1-sol medium,
+  2026-10-06, with Cold after and Cold resume tokens set low for the test), a prompt and then a follow-up to a
+  subagent:
 
   ```text
-  ↳ Hook · oxen-meter: this thread sat 1h12m. Its 180K context is likely out of the cache, so this
-    prompt sends it all again (~162K eq). A fresh thread with a short summary costs less.
+  ↳ Hook · oxen-meter: this thread sat 8m. Its 18K context is likely out of the cache, so
+  this prompt sends it all again (~16K eq). A fresh thread with a short summary costs
+  less.
+  • I’ll give helper the follow-up task and wait for its answer.
+  ↳ Hook · oxen-meter: agent d1e3 sat 8m. Resuming it likely sends its 17K context again
+  (~15K eq); a fresh subagent with a short handoff costs less.
   ```
 
   With the guard on `ask`, the prompt is held back once instead: press ↑ and Enter to send it anyway. A follow-up
   (`followup_task`, `send_message`) to a subagent that sat as long gets the same line; Codex cannot ask before a tool
   call, so it is never held back. Each turn's, subagent's and session's end imports that thread at once.
 - **Devin.** Devin shows no message from a hook, only a held-back prompt's reason, so `warn` says nothing there. With
-  the guard on `ask`, a prompt into a session that sat past Cold after is held back once, and ↑ and Enter send it:
+  the guard on `ask`, a prompt into a session that sat past Cold after is held back once, and ↑ and Enter send it.
+  Captured live (Devin CLI 3000.11.3, SWE-2 Medium, 2026-10-06, the thresholds set low for the test):
 
   ```text
-   ✱ Prompt blocked: oxen-meter: this thread sat 1h05m. Its 120K context is likely out of the cache,
-     so this prompt sends it all again (~108K eq). Press ↑ and Enter to send it anyway, or start a
-     fresh thread with a short summary.
+  ❭ Reply with the first word of README.md.
+   ✱ Prompt blocked: oxen-meter: this thread sat 7m. Its 14K context is likely out of
+     the cache, so this prompt sends it all again (~13K eq). Press ↑ and Enter to send
+     it anyway, or start a fresh thread with a short summary.
+  ❭ Reply with the first word of README.md.
+   hello
   ```
 
   Devin's keepalive pings read the cache every few minutes, so the guard counts from the last one. Each turn's and
@@ -200,9 +217,47 @@ run, a Devin one 150 to 460 ms (it opens Devin's database), Node's start include
 ## The report
 
 `/meter report [days]` in Claude Code, or `node $M report [days]`, adds up your sessions of the last days, 7 by
-default, over every tool:
+default, over every tool. A real one, captured in Claude Code on one developer's laptop on 2026-10-06, right after
+the install and `node $M import 30`: 30 days of their Codex and Devin logs, and one Claude Code session, the one that
+ran the command. Nothing is changed but one line left out, Quota, at the owner's request.
 
-<img src="../../docs/images/meter-report.png" alt="The report over a week of Claude Code, Codex and Devin sessions: tools, cache, token equivalent, models, agents, TTLs, gap curves, keepalive pings, compactions, quota, the cold resumes that cost most, and handoffs" width="860">
+```text
+❯ /meter report 30
+  ⎿  oxen-meter: 119 sessions in the last 30 days
+     Tools      claude 1 session, 0 eq · codex 96 sessions, 505M eq · devin 22 sessions, 132M eq
+     Cache      hit 97% · read 4280M · written 1.2M · uncached 124M · output 17M
+     Token eq.  637M: main 512M · subagent 125M
+     Models     gpt-5.6-sol hit 97%, 361M eq · swe-2-max hit 97%, 90M eq · gpt-6-astra hit 97%, 55M eq · gpt-6-sol hit 98%, 47M eq · swe-2-high hit 97%, 28M eq · gpt-6.1-sol hit
+     97%, 23M eq · gpt-6-luna hit 98%, 9.2M eq · gpt-5.5 hit 92%, 6.4M eq · compactor hit 0%, 6.0M eq · fable-5-1-medium hit 96%, 4.5M eq · swe-2-medium hit 95%, 4.1M eq ·
+     gpt-5.6-terra hit 96%, 3.6M eq
+     Agents     main 496M eq · worker 37M · code-reviewer 35M · compaction 18M · explorer 18M · fullstack-developer 6.5M · tester 5.8M · Sidekick 5.5M · ui-ux-designer 5.1M ·
+     debugger 4.2M · planner 1.3M · subagent 1.1M · default 1.0M · docs-manager 848K · General 795K · code-simplifier 509K · journal-writer 271K · project-manager 220K ·
+     git-manager 171K · advisor 49K
+     TTL        main 1h (default: no samples) · subagent 5m (default: no samples)
+     Gaps       codex gpt-5.6: 5–10m 30/33 warm · 10–30m 22/25 · 30–60m 9/14 · 1–2h 14/23 · 2–6h 0/11 · 6h+ 0/6
+                codex gpt-5.5: 5–10m 1/2 warm · 10–30m 1/1
+                codex gpt-6: 5–10m 15/15 warm · 10–30m 14/15 · 30–60m 6/6 · 1–2h 2/4 · 2–6h 2/3 · 6h+ 0/6
+                codex gpt-6.1: 5–10m 7/7 warm · 10–30m 2/3 · 30–60m 1/1 · 1–2h 0/1 · 2–6h 0/1 · 6h+ 0/1
+                devin swe-2: 5–10m 3/8 warm · 10–30m 0/6 · 30–60m 0/5 · 1–2h 0/2 · 2–6h 0/3 · 6h+ 0/1
+                devin fable: 5–10m 0/1 warm
+     Keepalive  64 pings, 2.0M eq
+     Compaction 268, 18M eq
+     Cold       68 cold resumes: 8.4M written again, 7.6M eq beyond a read
+                2026-09-15 10:20 UTC  codex explorer f5ff  gpt-5.6-sol  idle 2h14m  sent again 221K  +199K eq
+                2026-09-14 03:17 UTC  codex main  gpt-5.6-sol  idle 2h01m  sent again 205K  +184K eq
+                2026-09-17 06:56 UTC  codex main  gpt-5.6-sol  idle 3h31m  sent again 198K  +178K eq
+                2026-09-14 11:35 UTC  codex main  gpt-5.6-sol  idle 59m  sent again 198K  +178K eq
+                2026-09-15 13:43 UTC  codex code-reviewer 7399  gpt-5.6-sol  idle 19m  sent again 195K  +176K eq
+     Handoffs   156 Agent (156 background), median 6m back · 418 resumes (418 background), median 6m back · next handoff median 3m
+     Flags      236 context bloat · 14 big first prefix · 2 short task on an expensive model
+```
+
+What it says, read plainly. Codex's cache held through most short breaks (gpt-5.6: 30 of 33 steps after 5–10 minutes,
+14 of 23 after 1–2 hours) and never past 2 hours (0 of 17). Devin's SWE-2 lost it after 5–10 minutes more often than
+not (3 of 8 held), and never held it past 10 (0 of 17). The 68 cold resumes cost 7.6M token equivalents beyond a read,
+about 1% of the month. Cache reads cost far more: 4280M read at 0.1 are 428M of the 637M, which is why the 236
+context bloat flags (threads at 150K or more for 20 steps without a compaction) matter more here than cold resumes.
+The TTL row says `no samples` because Claude Code had no recorded session yet.
 
 ### Reading the numbers
 
@@ -326,10 +381,11 @@ Files are written by a timer, off that path.
 What the meter measured so far (Claude Code 2.1.291, Sonnet 5.5 and Opus 5.5, 2026-10-06): a subagent's cache writes
 were all 5m (an Agent call's split, measured), and a subagent idle 5.4 to 12 minutes wrote its whole context again. The
 main thread stayed warm after 10 minutes idle in an interactive session (1h), but wrote its context again after 6
-minutes in `claude -p` (5m). Codex (one machine, 60 days): gpt-5.6 read its context back 30 of 33 times after 5–10
-minutes, 14 of 23 after 1–2 hours, never after 2 hours; gpt-6.1 was still warm after 8 minutes. Devin's SWE-2: 2 of 7
-after 5–10 minutes, none after 10. These may differ by plan, mode and version: let the meter keep measuring, and read
-your own TTL row and gap curves.
+minutes in `claude -p` (5m). Codex and Devin, from 30 days on one laptop ([the report above](#the-report)):
+gpt-5.6 read its context back 30 of 33 times after 5–10 minutes, 14 of 23 after 1–2 hours, never after 2 hours (0 of
+17); gpt-6 15 of 15 after 5–10 minutes and 6 of 6 after 30–60. Devin's SWE-2 held it 3 of 8 times after 5–10 minutes
+and never after 10 (0 of 17). These may differ by plan, mode and version: let the meter keep measuring, and read your
+own TTL row and gap curves.
 </details>
 
 <details>
