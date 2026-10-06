@@ -1,3 +1,5 @@
+import { hitRate } from './analyze'
+import type { ColdResume, Handoff, Summary, TtlView } from './analyze'
 import { MAIN } from './record'
 import type { Collector } from './record'
 import { timingRows } from './timing'
@@ -16,6 +18,9 @@ const COOLING_SHARE = 0.2 // the cache counts as cooling in the last fifth of it
 const MIN = 60000
 
 export function fmtTokens(n: number) {
+  if (n >= 1e7) {
+    return `${Math.round(n / 1e6)}M`
+  }
   if (n >= 1e6) {
     return `${(n / 1e6).toFixed(1)}M`
   }
@@ -52,8 +57,14 @@ function threadRow(label: string, c: Collector, id: string, now: number, ttlMin:
   return { label, value: `${shortModel(t.lastModel)} · ctx ${fmtTokens(t.lastCtx)} · read ${fmtMin(Math.floor(idle / MIN))} ago · ${cache}`, color: COLORS[state] }
 }
 
-/** The pane's rows at `now`: the cache over every step, the steps by role, each live thread, and the meter's own hook times. */
-export function paneRows(c: Collector, live: readonly LiveAgent[], now: number, ttlMin: { main: number; subagent: number }): Row[] {
+/** What the pane adds once the meter has it: the session's summary, and where its file goes. */
+export type PaneExtras = { summary?: Summary; files?: string }
+
+/**
+ * The pane's rows at `now`: the cache over every step, the steps by role, the token equivalent, TTLs and cold resumes,
+ * each live thread, where the file goes, the handoffs and outcomes, and the meter's own hook times.
+ */
+export function paneRows(c: Collector, live: readonly LiveAgent[], now: number, ttlMin: { main: number; subagent: number }, more: PaneExtras = {}): Row[] {
   const groups = Object.entries(c.groups)
   if (groups.length === 0) {
     return [{ label: 'Cache', value: 'no model step yet' }]
@@ -71,6 +82,13 @@ export function paneRows(c: Collector, live: readonly LiveAgent[], now: number, 
     { label: 'Cache', value: `hit ${pct(sum.cr, sum.cr + sum.cw + sum.in)}% · read ${fmtTokens(sum.cr)} · written ${fmtTokens(sum.cw)} · uncached ${fmtTokens(sum.in)} · output ${fmtTokens(sum.out)}` },
     { label: 'Steps', value: [sum.main > 0 ? `${sum.main} main` : '', sum.subagent > 0 ? `${sum.subagent} subagent` : ''].filter(Boolean).join(' · ') },
   ]
+  const summary = more.summary
+  if (summary) {
+    rows.push({ label: 'Token eq.', value: eqText(summary) }, { label: 'TTL', value: ttlText(summary.ttl) })
+    if (summary.cold.length > 0) {
+      rows.push({ label: 'Cold', value: `${plural(summary.cold.length, 'cold resume')}: ${fmtTokens(summary.cold.reduce((n, r) => n + r.extra, 0))} eq beyond a read`, color: COLORS.cold })
+    }
+  }
   if (c.threads[MAIN]) {
     rows.push(threadRow('main', c, MAIN, now, ttlMin.main))
   }
@@ -78,6 +96,9 @@ export function paneRows(c: Collector, live: readonly LiveAgent[], now: number, 
     if (!ENDED.has(a.status)) {
       rows.push(threadRow(agentLabel(a.id, c.agentTypes[a.id]), c, a.id, now, ttlMin.subagent))
     }
+  }
+  if (more.files !== undefined) {
+    rows.push({ label: 'Files', value: more.files })
   }
 
   return [...rows, ...eventRows(c), ...timingRows(c.timings).map(t => ({ label: t.hook, value: t.text }))]
@@ -124,3 +145,114 @@ function eventRows(c: Collector): Row[] {
 
 /** The rows as plain text, one `label: value` a line, for where no pane shows. */
 export const rowsText = (rows: readonly Row[]) => rows.map(r => `${r.label}: ${r.value}`).join('\n')
+
+const eqText = (s: Summary) => `${fmtTokens(s.eq)}: main ${fmtTokens(s.byRole.main.eq)} · subagent ${fmtTokens(s.byRole.subagent.eq)}`
+
+/** How long `ms` is, in seconds under a minute, else as fmtMin does. */
+export const fmtDur = (ms: number) => (ms < 60000 ? `${Math.round(ms / 1000)}s` : fmtMin(Math.round(ms / 60000)))
+
+function ttlOne(t: TtlView) {
+  const ttl = t.min >= 60 ? '1h' : '5m'
+  if (t.source === 'setting') {
+    return `${t.role} ${ttl} (setting)`
+  }
+  if (t.source === 'measured') {
+    return `${t.role} ${ttl} (measured: ${t.measured['5m'] + t.measured['1h']})`
+  }
+  const seen = [
+    t.warm > 0 ? `${t.warm} warm up to ${fmtDur(t.longestWarmMs ?? 0)}` : '',
+    t.cold > 0 ? `${t.cold} cold from ${fmtDur(t.shortestColdMs ?? 0)}` : '',
+  ].filter(Boolean)
+
+  return `${t.role} ${ttl} (${t.source}: ${seen.length > 0 ? seen.join(', ') : 'no samples'})`
+}
+
+const ttlText = (ttl: Summary['ttl']) => `${ttlOne(ttl.main)} · ${ttlOne(ttl.subagent)}`
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length === 0 ? undefined : sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+}
+
+const pad = (label: string) => label.padEnd(10)
+const INDENT = ' '.repeat(11)
+
+/** When `t` was, in UTC: the mod has no time zone to read. */
+const utc = (t: number) => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC`
+
+function coldLine(r: ColdResume) {
+  const who = r.role === 'main' ? (r.model === '' ? 'main (resumed)' : `main  ${shortModel(r.model)}`) : `${agentLabel(r.thread, r.agentType)}  ${shortModel(r.model)}`
+
+  return `${utc(r.t)}  ${who}  idle ${fmtDur(r.gapMs)}  wrote ${fmtTokens(r.cw)}  +${fmtTokens(r.extra)} eq`
+}
+
+function handoffText(all: readonly Handoff[]) {
+  const part = (kind: Handoff['kind'], name: string) => {
+    const own = all.filter(h => h.kind === kind)
+    if (own.length === 0) {
+      return ''
+    }
+    const bg = own.filter(h => h.bg).length
+    const back = median(own.flatMap(h => (h.workMs !== undefined ? [h.workMs] : [])))
+    return `${own.length} ${name}${bg > 0 ? ` (${bg} background)` : ''}${back !== undefined ? `, median ${fmtDur(back)} back` : ''}`
+  }
+  const react = median(all.flatMap(h => (h.reactMs !== undefined ? [h.reactMs] : [])))
+
+  return [part('agent', 'Agent'), part('codex', 'Codex'), react !== undefined ? `next handoff median ${fmtDur(react)}` : ''].filter(Boolean).join(' · ')
+}
+
+const FLAG_NAMES = { 'context-bloat': 'context bloat', 'big-first-prefix': 'big first prefix', 'expensive-short': 'short task on an expensive model' } as const
+const TOP_COLD = 5
+
+/** `/meter report`: what `s` adds up to over the last `days`, one row a line, the cold resumes that cost most first. */
+export function reportText(s: Summary, o: { days: number; skipped: number }): string {
+  if (s.sessions === 0) {
+    return `oxen-meter: no session in the last ${plural(o.days, 'day')}.`
+  }
+  const byEq = <T extends { eq: number }>(rec: Record<string, T>) => Object.entries(rec).sort((a, b) => b[1].eq - a[1].eq)
+  const lines = [
+    `oxen-meter: ${plural(s.sessions, 'session')} in the last ${plural(o.days, 'day')}${o.skipped > 0 ? ` (${plural(o.skipped, 'emptied file')} skipped)` : ''}`,
+    `${pad('Cache')} hit ${pct(s.totals.cr, s.totals.cr + s.totals.cw + s.totals.in)}% · read ${fmtTokens(s.totals.cr)} · written ${fmtTokens(s.totals.cw)} · uncached ${fmtTokens(s.totals.in)} · output ${fmtTokens(s.totals.out)}`,
+    `${pad('Token eq.')} ${eqText(s)}`,
+    `${pad('Models')} ${byEq(s.byModel).map(([m, g]) => `${shortModel(m)} hit ${Math.round(hitRate(g) * 100)}%, ${fmtTokens(g.eq)} eq`).join(' · ')}`,
+    `${pad('Agents')} ${byEq(s.byAgentType).map(([a, g], i) => `${a} ${fmtTokens(g.eq)}${i === 0 ? ' eq' : ''}`).join(' · ')}`,
+    `${pad('TTL')} ${ttlText(s.ttl)}`,
+  ]
+  if (s.cold.length > 0) {
+    const written = s.cold.reduce((n, r) => n + r.cw, 0)
+    const extra = s.cold.reduce((n, r) => n + r.extra, 0)
+    lines.push(`${pad('Cold')} ${plural(s.cold.length, 'cold resume')}: ${fmtTokens(written)} written again, ${fmtTokens(extra)} eq beyond a read`)
+    for (const r of [...s.cold].sort((a, b) => b.extra - a.extra).slice(0, TOP_COLD)) {
+      lines.push(`${INDENT}${coldLine(r)}`)
+    }
+  }
+  const handoffs = handoffText(s.handoffs)
+  if (handoffs !== '') {
+    lines.push(`${pad('Handoffs')} ${handoffs}`)
+  }
+  const flags = (Object.keys(FLAG_NAMES) as (keyof typeof FLAG_NAMES)[]).flatMap(k => {
+    const n = s.flags.filter(f => f.kind === k).length
+    return n > 0 ? [`${n} ${FLAG_NAMES[k]}`] : []
+  })
+  if (flags.length > 0) {
+    lines.push(`${pad('Flags')} ${flags.join(' · ')}`)
+  }
+
+  return lines.join('\n')
+}
+
+/** Where the session's file goes, as the meter last wrote it. */
+export type FilesState = { root: string | undefined; savedAt?: number; error?: string }
+
+/** The pane's files row: where the session is saved, or why it is not. */
+export function filesText(f: FilesState, now: number) {
+  if (f.root === undefined) {
+    return 'not saved: set Data folder in /plugin configure oxen-meter@oxen-pet'
+  }
+  if (f.error !== undefined) {
+    return `not saved: ${f.error}`
+  }
+
+  return f.savedAt === undefined ? `not saved yet: ${f.root}/sessions` : `saved ${fmtMin(Math.floor((now - f.savedAt) / MIN))} ago to ${f.root}/sessions`
+}

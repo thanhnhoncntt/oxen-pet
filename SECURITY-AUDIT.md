@@ -93,6 +93,49 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
    gives, with no `..`, `~` or `$`. It reads only `<name>.theme.json` for a name of letters, digits, `-` and
    `_`, and never writes there. A theme from it goes through `readTheme` like any other.
 
+## oxen-meter
+
+`plugins/oxen-meter` is written for this repo, not forked. It measures the prompt cache from the token counts Claude
+Code reports, and keeps metadata only: token counts, times, model and tool names, agent types. It never keeps a prompt,
+an answer, a tool's input or output, a file path or a command.
+
+From `claude plugin validate plugins/oxen-meter --strict`:
+
+```
+hooks: session.start, turn.step, tool.call{tool=Bash}, tool.call{tool=Agent}, classic.SubagentStart,
+       classic.SubagentStop, session.compact, turn.complete, session.end, command.run{command=meter},
+       ui.render{component=Pane}
+calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, $.fs.read, $.fs.stat, $.fs.write,
+       $.session.id, $.session.root, $.session.usage, $.store.get, $.store.set, $.ui.close, $.ui.invalidate,
+       $.ui.open, $.ui.panes, $.ui.resolve
+```
+
+| Call | Used for |
+| --- | --- |
+| `turn.step` | Passes every model request on untouched (no model, effort or answer of its own), then records the response's four token counts, model, and the names of the tools it asked for |
+| `tool.call` on Bash | Reads the command's text to label it a Codex handoff or an outcome (`git commit`, `gh pr create`); keeps the label, never the command |
+| `tool.call` on Agent | Reads the result's agent id, type, model, token total and the 5m/1h split of its cache writes; never the prompt or the report |
+| `session.compact` | Passes the compaction on untouched; records its trigger and sizes |
+| `$.fs.write` | Only `<data folder>/sessions/<session id>.json` and `<data folder>/exports/oxen-meter-export-<date>[-<label>].json`, through `hooks/dataPath.ts` (below) |
+| `$.fs.read` | The meter's own `plugin.json` (its version), and its session files in `<data folder>/sessions` |
+| `$.fs.list` | `<data folder>/sessions`, for `/meter report` and for emptying expired files |
+| `$.fs.stat` | Where a path leads before each write |
+| `$.session.id`, `$.session.root`, `$.session.usage` | The session file's name, the project (hashed by default), when the session started and what it cost |
+| `$.store.*` | The salt for project hashes (random, the user's own), and when expired files were last emptied |
+| `$.agent.list` | Which subagents are alive, for the pane |
+| `$.command.register`, `$.ui.*` | `/meter` and its pane |
+
+The data folder is the **Data folder** setting (absolute, no `..`, `~` or `$`), or `oxen-meter` in the `.claude`
+folder the plugin is installed under. With neither, the meter writes nothing. `hooks/dataPath.ts` refuses any other
+file name, a relative path or `..`; then, on disk, a symbolic link at the data folder, its `sessions`/`exports`
+folder or the file, a folder or file that lands anywhere but where it is spelled, and a data folder whose parent is
+not a folder. The data folder's own ancestors may be links (a `.claude` folder kept in a dotfiles repo).
+
+There is no delete: `$.fs` has none. A session file past **Keep sessions (days)** is written over with
+`{"v":1,"expired":true}` and stays as those few bytes.
+
+No hook refuses anything: every hook passes its event on, and a hook that throws is skipped (fail-open). The checks above apply to it with `plugins/oxen-meter` in place of `plugins/oxen-pet`; each prints nothing.
+
 ## Taking an upstream change
 
 Never install upstream's marketplace. To bring in a change:

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { DEFAULTS, readSettings, ttlMinOf } from './settings'
+import { DEFAULTS, readSettings } from './settings'
 
 test('no options give the defaults', () => {
   expect(readSettings({})).toEqual(DEFAULTS)
@@ -20,10 +20,4 @@ test('a value from another version, or a malformed one, takes its default', () =
 
 test('a label longer than a short name is cut', () => {
   expect(readSettings({ userLabel: 'x'.repeat(100) }).userLabel).toBe('x'.repeat(40))
-})
-
-test('a TTL setting gives minutes; auto takes the inferred TTL, else 1h for main and 5m for a subagent', () => {
-  expect([ttlMinOf('auto', 'main'), ttlMinOf('auto', 'subagent')]).toEqual([60, 5])
-  expect([ttlMinOf('5m', 'main'), ttlMinOf('1h', 'subagent')]).toEqual([5, 60])
-  expect([ttlMinOf('auto', 'main', 5), ttlMinOf('auto', 'subagent', 60), ttlMinOf('1h', 'subagent', 5)]).toEqual([5, 60, 60])
 })

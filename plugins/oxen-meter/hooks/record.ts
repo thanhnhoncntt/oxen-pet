@@ -47,6 +47,9 @@ export type EventRecord =
 
 export type MeterRecord = StepRecord | EventRecord
 
+/** Every kind of record this version writes; a file's record of another kind is left out when it is read. */
+export const RECORD_KINDS: ReadonlySet<string> = new Set(['step', 'agent-start', 'agent-stop', 'agent-call', 'codex', 'outcome', 'compact', 'main-resume', 'ttl'])
+
 /** Where a thread stands after its last step. */
 export type ThreadState = { lastT0: number; lastT1: number; lastCtx: number; lastModel: string; lastMsgs: number; steps: number; agentType?: string }
 
@@ -120,6 +123,12 @@ function cap(c: Collector) {
   c.dropped += DROP_CHUNK - Math.max(0, left)
 }
 
+/** Moves `r`'s thread on to it, in place. */
+export function noteThread(c: Collector, r: StepRecord) {
+  const steps = (c.threads[r.thread]?.steps ?? 0) + 1
+  c.threads[r.thread] = { lastT0: r.t0, lastT1: r.t1, lastCtx: r.ctx, lastModel: r.model, lastMsgs: r.msgs, steps, ...(r.agentType !== undefined ? { agentType: r.agentType } : {}) }
+}
+
 /** Adds a step, in place: its record, its thread's state, and its group's totals. */
 export function addStep(c: Collector, r: StepRecord) {
   c.records.push(r)
@@ -129,8 +138,7 @@ export function addStep(c: Collector, r: StepRecord) {
   g.out += r.out
   g.cr += r.cr
   g.cw += r.cw
-  const steps = (c.threads[r.thread]?.steps ?? 0) + 1
-  c.threads[r.thread] = { lastT0: r.t0, lastT1: r.t1, lastCtx: r.ctx, lastModel: r.model, lastMsgs: r.msgs, steps, ...(r.agentType !== undefined ? { agentType: r.agentType } : {}) }
+  noteThread(c, r)
   if (c.compacting > 0) {
     c.stepsInCompaction += 1
   }
@@ -138,14 +146,19 @@ export function addStep(c: Collector, r: StepRecord) {
   cap(c)
 }
 
-/** Adds an event, in place. A subagent's start names its type for its later steps. */
-export function addEvent(c: Collector, r: EventRecord) {
-  c.records.push(r)
+/** Notes the agent type an event names, in place: a subagent's start, or the Agent call that started it. */
+export function noteAgentType(c: Collector, r: EventRecord) {
   if (r.k === 'agent-start') {
     c.agentTypes[r.thread] = r.agentType
   } else if (r.k === 'agent-call' && r.agent !== undefined && r.agentType !== undefined) {
     c.agentTypes[r.agent] = r.agentType
   }
+}
+
+/** Adds an event, in place. A subagent's start names its type for its later steps. */
+export function addEvent(c: Collector, r: EventRecord) {
+  c.records.push(r)
+  noteAgentType(c, r)
   c.dirty = true
   cap(c)
 }

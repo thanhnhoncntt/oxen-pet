@@ -319,7 +319,11 @@ plugins/oxen-pet/                 the plugin: a Claude Code mod
 plugins/oxen-meter/               the prompt cache meter: a mod with no band
   hooks/register.tsx              wires Claude Code's events to the modules
   hooks/record.ts                 step and event records, and the collector
-  hooks/report.ts                 the /meter pane's rows
+  hooks/analyze.ts                hit rate, token equivalent, TTLs, cold resumes, handoffs, anti-patterns
+  hooks/sessionFile.ts            a session's file: written whole, kept under 3 MiB, emptied when expired
+  hooks/dataPath.ts               where the meter may write
+  hooks/project.ts                the project's name, hashed
+  hooks/report.ts                 the /meter pane's rows and /meter report
   hooks/codex.ts                  which Bash calls are Codex handoffs or outcomes
   hooks/timing.ts                 how long the meter's own hooks take
   hooks/settings.ts               reads the settings

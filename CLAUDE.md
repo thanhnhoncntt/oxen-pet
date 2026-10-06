@@ -30,6 +30,9 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - **cold resume**: a step whose gap passed its thread's TTL and that wrote at least the **cold tokens** setting to the cache: the whole context written again.
 - **handoff**: work a thread gives away, to a subagent (an Agent call) or to Codex (a Bash call of `codex` or the codex plugin's companion). **outcome**: a commit or a pull request a Bash call made.
 - **collector**: the records of the session in memory, with exact totals by role, agent type and model (`record.ts`). **hook timing**: how long the meter's own hooks take (`timing.ts`).
+- **warm sample**, **cold sample**: a step judged against the step before it in its thread, by whether it read that context back (`analyze.ts`). **measured TTL**: one Claude Code reported (an Agent call's 5m/1h cache writes, a model switch). **inferred TTL**: one the samples show. A role's TTL is the setting's, else measured, else inferred, else the default (1h main, 5m subagent).
+- **token equivalent**: steps' cost in uncached input tokens: writes at 1.25 (5m) or 2 (1h), reads at 0.1, output at the **output weight** setting.
+- **data folder**: where the meter writes (`dataPath.ts`). **session file**: one session's records and totals, `sessions/<session id>.json`, written whole by the timer (`sessionFile.ts`). **emptied file**: a session file past the retention days, written over with a tombstone, since nothing can delete it. **report**: `/meter report`, the session files of the last days added up.
 
 ## Before a change is done
 
@@ -72,6 +75,7 @@ A user who updates keeps three things the old version saved. Each must still loa
 
 - It stays out of the cache's way: no `prompt.compose`, `session.append` or `prompt.fill`, no rewrite of a step's model or effort, no answer in the engine's place. Its output is its pane, toasts, command output, and its own files.
 - The hot path (`turn.step`, `tool.call`) only adds to the collector in place and returns: no file, list or store call there. `timing.ts` measures it, and the pane shows the numbers.
+- Every file write goes through `writeGuarded` in `register.tsx`, which asks `dataPath.ts` first. A new kind of file gets its own name pattern there, a test, and a line in `SECURITY-AUDIT.md`.
 - It fails open on its own errors: no `.catch` that refuses. A hook that throws is skipped, and the step, call or message goes on as Claude Code sent it.
 - A record keeps metadata only (Terms above). A new field is a count, a time, or a name from a fixed set; never text the model or the user wrote.
 - It draws no `AbovePrompt` and no `PromptHint`, so it runs beside oxen-pet; its pane is `Text` only, so it draws alike on the terminal and the desktop.

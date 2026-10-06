@@ -39,12 +39,3 @@ export function readSettings(options: Readonly<Record<string, unknown>>): Settin
     dataDir: typeof options.dataDir === 'string' ? options.dataDir.trim() : DEFAULTS.dataDir,
   }
 }
-
-/** The cache TTL of `role` in minutes: the setting's, or for auto the inferred one, else 1h for main and 5m for a subagent. */
-export function ttlMinOf(setting: TtlSetting, role: 'main' | 'subagent', inferredMin?: number) {
-  if (setting !== 'auto') {
-    return setting === '5m' ? 5 : 60
-  }
-
-  return inferredMin ?? (role === 'main' ? 60 : 5)
-}
