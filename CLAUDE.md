@@ -41,7 +41,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - Type-check with `tsc -p plugins/oxen-pet`.
 - Run `node tools/preview/build.mjs` and open the preview. A JS error on the page fails the change.
 - Bump `version` in `plugins/oxen-pet/.claude-plugin/plugin.json` when users should get the change.
-- For oxen-meter: `claude plugin validate plugins/oxen-meter --strict`, `claude plugin test plugins/oxen-meter`, `tsc -p plugins/oxen-meter`, and `node --test tools/meter/aggregate.test.mjs`; bump its own `version`. A field added to a record or an export goes in `README.md`'s "What it records" too.
+- For oxen-meter: `claude plugin validate plugins/oxen-meter --strict`, `claude plugin test plugins/oxen-meter`, `tsc -p plugins/oxen-meter`, and `node --test 'tools/meter/*.test.mjs'` (the CLI and the team report); bump its own `version`. A field added to a record or an export goes in `README.md`'s "What it records" too.
 
 ## Traps
 

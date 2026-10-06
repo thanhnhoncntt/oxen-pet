@@ -281,22 +281,47 @@ export function gapCurve(samples: readonly Sample[]): GapBucket[] {
 }
 
 /**
- * How many points of each rate-limit window, by its length in minutes, moved while the records' sessions ran: each rise
- * between two readings of a window at most an hour apart; after a reset, the reading itself. The windows are the
- * account's, so the sessions given should be one person's, of one tool.
+ * How many points of each rate-limit window, by its length in minutes, moved while the records' sessions ran.
+ *
+ * Readings that name the same reset time (within an hour) are one window; two accounts, or two limits, reported side
+ * by side are two. A window's readings make spans, each broken by a gap of over an hour (someone else's use may sit in
+ * it); a span counts from its first reading to its highest, so a thread that reports a reading a little late never
+ * counts a point twice. A window that starts within an hour of the last one's reset time counts from zero. Readings
+ * with no reset time are one window, reset by a reading under half the last.
  */
 export function quotaUsed(records: readonly MeterRecord[]): Record<number, number> {
-  const last = new Map<number, { t: number; used: number; resetsAt?: number }>()
+  type Span = { base: number; top: number; t: number; used: number }
+  const windows: { windowMin: number; resetsAt?: number; span: Span }[] = []
   const used: Record<number, number> = {}
+  const add = (windowMin: number, s: Span) => {
+    used[windowMin] = (used[windowMin] ?? 0) + s.top - s.base
+  }
+  const near = (a?: number, b?: number) => (a === undefined || b === undefined ? a === b : Math.abs(a - b) <= QUOTA_RESET_MS)
   for (const r of [...records].sort((a, b) => ('t' in a ? a.t : a.t0) - ('t' in b ? b.t : b.t0))) {
     if (r.k !== 'quota') {
       continue
     }
-    const prev = last.get(r.windowMin)
-    last.set(r.windowMin, r)
-    const sum = used[r.windowMin] ?? 0
-    const reset = prev !== undefined && (r.used < prev.used || (r.resetsAt !== undefined && prev.resetsAt !== undefined && r.resetsAt - prev.resetsAt > QUOTA_RESET_MS))
-    used[r.windowMin] = prev === undefined || r.t - prev.t > QUOTA_SPAN_MS ? sum : sum + (reset ? r.used : r.used - prev.used)
+    used[r.windowMin] ??= 0
+    const open = (base: number): Span => ({ base, top: r.used, t: r.t, used: r.used })
+    const own = windows.find(w => w.windowMin === r.windowMin && near(w.resetsAt, r.resetsAt))
+    if (own === undefined) {
+      const ended = windows.some(w => w.windowMin === r.windowMin && w.resetsAt !== undefined && w.resetsAt <= r.t && r.t - w.span.t <= QUOTA_SPAN_MS)
+      windows.push({ windowMin: r.windowMin, ...(r.resetsAt !== undefined ? { resetsAt: r.resetsAt } : {}), span: open(ended ? 0 : r.used) })
+      continue
+    }
+    const s = own.span
+    const reset = r.resetsAt === undefined && r.used < s.used / 2
+    if (reset || r.t - s.t > QUOTA_SPAN_MS) {
+      add(r.windowMin, s)
+      own.span = open(reset && r.t - s.t <= QUOTA_SPAN_MS ? 0 : r.used)
+      continue
+    }
+    s.top = Math.max(s.top, r.used)
+    s.t = r.t
+    s.used = r.used
+  }
+  for (const w of windows) {
+    add(w.windowMin, w.span)
   }
 
   return used

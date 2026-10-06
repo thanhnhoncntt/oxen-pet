@@ -106,7 +106,7 @@ From `claude plugin validate plugins/oxen-meter --strict`:
 ```
 hooks: session.start, turn.step, tool.call{tool=Bash}, tool.call{tool=Agent}, classic.SubagentStart,
        classic.SubagentStop, session.send, classic.SessionStart, classic.PostModelSwitch, session.compact,
-       turn.complete, session.end, command.run{command=meter}, ui.render{component=Pane}
+       session.measure, turn.complete, session.end, command.run{command=meter}, ui.render{component=Pane}
 calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, $.fs.read, $.fs.stat, $.fs.write,
        $.session.id, $.session.root, $.session.usage, $.store.get, $.store.set, $.ui.ask, $.ui.close,
        $.ui.invalidate, $.ui.open, $.ui.panes, $.ui.resolve, $.ui.toast
@@ -120,13 +120,14 @@ calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, 
 | `session.compact` | Passes the compaction on untouched; records its trigger and sizes |
 | `session.send` | The cold resume guard (below). Reads whom a message from Claude goes to, never its text |
 | `classic.SessionStart`, `classic.PostModelSwitch` | Numbers Claude Code reports: how long a resumed session sat and whether its cache likely expired; the main thread's TTL |
+| `session.measure` | The rate-limit windows' use, recorded when one moves |
 | `$.ui.ask`, `$.ui.toast` | The guard's question and its warnings |
-| `$.fs.write` | Only `<data folder>/sessions/<session id>.json` and `<data folder>/exports/oxen-meter-export-<date>[-<label>].json`, through `hooks/dataPath.ts` (below) |
-| `$.fs.read` | The meter's own `plugin.json` (its version), and its session files in `<data folder>/sessions` |
+| `$.fs.write` | Only `<data folder>/sessions/<session id>.json`, `<data folder>/exports/oxen-meter-export-<date>[-<label>].json` and `<data folder>/state/salt.json`, through `hooks/dataPath.ts` (below) |
+| `$.fs.read` | The meter's own `plugin.json` (its version), its session files in `<data folder>/sessions` (the CLI's Codex and Devin ones among them), and `state/salt.json` |
 | `$.fs.list` | `<data folder>/sessions`, for `/meter report` and for emptying expired files |
 | `$.fs.stat` | Where a path leads before each write |
 | `$.session.id`, `$.session.root`, `$.session.usage` | The session file's name, the project (hashed by default), when the session started and what it cost |
-| `$.store.*` | The salt for project hashes (random, the user's own), and when expired files were last emptied |
+| `$.store.*` | The salt for hashes (random, the user's own) until `state/salt.json` holds one, and when expired files were last emptied |
 | `$.agent.list` | Which subagents are alive, for the pane |
 | `$.command.register`, `$.ui.*` | `/meter` and its pane |
 
@@ -144,16 +145,50 @@ hashed with the user's salt, agent and turn ids replaced by `a1`, `t1`, MCP tool
 from the session's start, no folder. The user sends the file on by hand; the meter sends nothing.
 
 `tools/meter/aggregate.mjs` builds the team report from exports. It is a developer tool a person runs by hand, outside
-`plugins/oxen-meter`, so no install ships it and Claude Code never loads it. It reads the export files it is given and,
-unless `--no-codex`, the `token_count` lines of `~/.codex/sessions` (it skips every other line, prompts and code
-among them); it writes `team-report.md` and `team-report.json` in `--out`. No network, no process.
+`plugins/oxen-meter`, so Claude Code never loads it. It reads the export files it is given and writes
+`team-report.md` and `team-report.json` in `--out`. No network, no process.
 
 One hook can hold anything back: `session.send`, the cold resume guard. With **Cold resume guard** set to `ask`, and
 only for a message Claude sends (not a plugin's) to an agent whose cache likely went cold with at least **Cold resume
 tokens** of context, it asks the user; on **Spawn a fresh agent** alone it answers `isDelivered: false`, and Claude
 reads why as the SendMessage result. **Resume anyway**, no answer (`claude -p`), and an error in the guard all send
 the message. `warn` (the default) and `off` never hold one back. Every other hook passes its event on, and a hook that
-throws is skipped (fail-open). The checks above apply to it with `plugins/oxen-meter` in place of `plugins/oxen-pet`; each prints nothing.
+throws is skipped (fail-open). The checks above apply to it with `plugins/oxen-meter` in place of `plugins/oxen-pet`.
+The first prints two lines of `hooks/codexLog.ts`, which reads Codex's own names `spawn_agent` and `thread_spawn` from
+the CLI's input; the others print nothing.
+
+### The oxen-meter CLI (`tools/meter/oxen-meter.mjs`)
+
+Codex CLI and Devin CLI cannot load a Claude Code mod, so the meter reads their logs with a Node script a person runs
+(`import`, `report`, `export`), or a Codex or Devin hook runs. It is not part of the mod: Claude Code never loads it,
+and it comes with this repo, or the clone Claude Code keeps of the marketplace (`~/.claude/plugins/marketplaces`). It
+runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files and guards.
+
+- **Network, processes:** none. `node:fs`, `node:path`, `node:os`, `node:module` and `node:url` are all it imports,
+  with its own `lib/` and, by `import()`, the mod's `plugins/oxen-meter/hooks/*.ts`.
+- **Environment:** the home folder alone, through `os.homedir()`; every path under it can be named by a flag instead.
+- **Reads:** `~/.claude/settings.json` (the oxen-meter options under `pluginConfigs`); Codex's
+  `~/.codex/sessions/**/rollout-*.jsonl`, from where its last read stopped. Of each line it reads the head (time and
+  type) and parses only the kinds it records: a thread's meta (its ids, parent, role and path; the working folder,
+  hashed with the salt and dropped), the model and effort, each request's token counts, the rate limits, and a tool
+  call's name, with the target of `spawn_agent`, `followup_task` and `send_message`. Prompts, answers, reasoning,
+  tool input and output are never kept; a test fills every other field with a marker and checks no file holds it.
+- **Writes:** through `tools/meter/lib/files.mjs`, which runs the mod's `dataPathError` with the CLI's kinds and
+  `dataTargetError` on `lstat`/`realpath`: `sessions/codex-<session id>.json`, `exports/…`, `state/salt.json`, and its
+  own `state/codex.json` (where each file's read stopped) and `state/codex.lock` (created exclusively, removed when the
+  import ends, taken over after a minute). Nothing else, and nothing through a symbolic link.
+- **The salt** in `state/salt.json` is shared with the mod, so a session keeps one hashed id in every export.
+
+```bash
+# The CLI: no network, no process, no environment variable, no dynamic code
+grep -rnE "fetch\(|XMLHttpRequest|WebSocket|https?://|child_process|spawn\(|exec\(|process\.env|eval\(|new Function|node:(net|http|https|dgram|child_process|worker_threads)" \
+  tools/meter --include='*.mjs' | grep -v '\.test\.mjs'
+# expected: nothing
+
+# Its imports
+grep -rhoE "from '[^']+'|import\([^)]*\)" tools/meter/oxen-meter.mjs tools/meter/lib | sort -u
+# expected: node:fs, node:module, node:os, node:path, node:url, its own lib, and import() of the mod's hooks
+```
 
 ## Taking an upstream change
 

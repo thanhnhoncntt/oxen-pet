@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { dataPathError, dataRootOf, dataTargetError, exportPath, sessionPath } from './dataPath'
+import { CLI_KINDS, dataPathError, dataRootOf, dataTargetError, exportPath, saltPath, sessionPath, statePath } from './dataPath'
 
 const ROOT = '/Users/me/.claude/oxen-meter'
 const SID = '2f6c1d0a-8e1b-4c55-9a39-0c0f6f9e6b11'
@@ -80,4 +80,20 @@ test('a path that lands anywhere but where it is spelled, or on something that i
 test('Windows separators compare as one', () => {
   const win = 'C:\\Users\\me\\.claude/oxen-meter'
   expect(dataTargetError(`${win}/sessions/${SID}.json`, { root: dir('C:\\Users\\me\\.claude\\oxen-meter'), dir: dir('C:\\Users\\me\\.claude\\oxen-meter\\sessions') })).toBeUndefined()
+})
+
+test('the salt the mod and the CLI share is a file the mod may write; the CLI\'s import state and locks are the CLI\'s alone', () => {
+  expect(saltPath(ROOT)).toBe(`${ROOT}/state/salt.json`)
+  expect(statePath(ROOT, 'codex', 'json')).toBe(`${ROOT}/state/codex.json`)
+  expect(dataPathError(ROOT, saltPath(ROOT))).toBeUndefined()
+  for (const name of ['codex.json', 'devin.json', 'codex.lock', 'devin.lock']) {
+    expect(dataPathError(ROOT, `${ROOT}/state/${name}`)).toBeDefined()
+    expect(dataPathError(ROOT, `${ROOT}/state/${name}`, CLI_KINDS)).toBeUndefined()
+  }
+  for (const name of ['other.json', 'codex.json.bak', '../salt.json', 'salt.lock']) {
+    expect(dataPathError(ROOT, `${ROOT}/state/${name}`, CLI_KINDS)).toBeDefined()
+  }
+  expect(dataPathError(ROOT, `${ROOT}/sessions/codex-01a10f34-8859-7e71-b716-87d71c201fe1.json`, CLI_KINDS)).toBeUndefined()
+  expect(dataTargetError(saltPath(ROOT), { root: dir(REAL), dir: dir(`${REAL}/state`) })).toBeUndefined()
+  expect(dataTargetError(saltPath(ROOT), { root: dir(REAL), dir: dir('/tmp/state') })).toContain('lands on')
 })

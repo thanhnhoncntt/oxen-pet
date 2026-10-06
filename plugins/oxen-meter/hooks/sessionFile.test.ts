@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { MAIN, addEvent, addStep, gapOf, newCollector, stepRecordOf } from './record'
-import { TOMBSTONE, isExpired, readSessionText, restoreCollector, sessionText } from './sessionFile'
+import { TOMBSTONE, activeAt, isExpired, readSessionText, restoreCollector, sessionText } from './sessionFile'
 import { noteTiming } from './timing'
 
 const DAY = 86400000
@@ -83,4 +83,12 @@ test('a quota record reads back; a keepalive step keeps its mark', () => {
   const file = readSessionText(sessionText(c, META))!
   expect(file.records.filter(r => r.k === 'quota')).toEqual([{ k: 'quota', t: 5, thread: MAIN, windowMin: 10080, used: 12.5 }])
   expect(file.records.filter(r => r.k === 'step' && r.keepalive).length).toBe(1)
+})
+
+test('a session was last active at its last record, not when its file was written, which for an import is much later', () => {
+  const c = collector(3)
+  addEvent(c, { k: 'compact', t0: 7000, t1: 8000, thread: MAIN, trigger: 'auto', stepsSeen: 0 })
+  const file = readSessionText(sessionText(c, { ...META, savedAt: 99999999 }))!
+  expect(activeAt(file)).toBe(8000)
+  expect(activeAt({ ...file, records: [] })).toBe(META.startedAt)
 })

@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import { shortHash } from './project'
 import type { TestBody } from 'claude-code/testing'
 
 type On = Parameters<TestBody>[1]
@@ -221,6 +222,7 @@ test('a compaction passes through untouched and is recorded with its sizes', asy
 })
 
 const DATA = { options: { dataDir: '/home/me/meter' } }
+const SALT = '/home/me/meter/state/salt.json'
 const TURN = { turnId: 't1', answer: 'secret answer', durationMs: 10, isAborted: false, reason: 'answer' } as const
 
 test('a step writes nothing; after a main turn ends the timer writes the session through the guard, with no prompt or answer in it', DATA, async ($, on) => {
@@ -230,11 +232,11 @@ test('a step writes nothing; after a main turn ends the timer writes the session
   await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
   await runStep($, STEP)
   await $.turn.complete(TURN as never)
-  expect(fs.writes).toEqual([])
+  expect(fs.writes).toEqual([SALT])
 
   await clock.advance(15000)
   const path = `/home/me/meter/sessions/${SID}.json`
-  expect(fs.writes).toEqual([path])
+  expect(fs.writes).toEqual([SALT, path])
   const text = fs.files.get(path)!.text
   const file = JSON.parse(text)
   expect(file).toMatchObject({ v: 1, sid: SID, version: '0.1.0', costUsd: 1.5, groups: { 'main||claude-opus-5-5': { steps: 1 } } })
@@ -244,7 +246,7 @@ test('a step writes nothing; after a main turn ends the timer writes the session
   expect(await paneText($)).toContain('saved 0m ago to /home/me/meter/sessions')
 
   await clock.advance(15000)
-  expect(fs.writes.length).toBe(1)
+  expect(fs.writes.length).toBe(2)
 })
 
 test('a symbolic link in the data folder stops the write, and the pane says why', DATA, async ($, on) => {
@@ -258,7 +260,7 @@ test('a symbolic link in the data folder stops the write, and the pane says why'
   await runStep($, STEP)
   await $.turn.complete(TURN as never)
   await clock.advance(15000)
-  expect(fs.writes).toEqual([])
+  expect(fs.writes.filter(p => p.includes('/sessions/'))).toEqual([])
   expect(await paneText($)).toContain('not saved: the sessions folder is a symbolic link.')
 })
 
@@ -539,4 +541,20 @@ test('/meter report adds a Codex session file the CLI wrote beside Claude Code\'
   const out = String((await $.command.run({ command: 'meter', args: 'report', ...RUN } as never)).text)
   expect(out).toContain('Tools      claude 1 session')
   expect(out).toContain('codex 1 session, 1.9K eq')
+})
+
+test('the salt is shared with the CLI: the mod writes its own to the data folder, and takes the one it finds there', DATA, async ($, on) => {
+  const { clock, store } = stubEngine(on)
+  const fs = stubFs(on)
+  stubModel(on, [])
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  expect(JSON.parse(fs.files.get(SALT)!.text)).toEqual({ salt: store.get('salt') })
+
+  fs.files.set(SALT, { text: '{"salt":"salt-from-the-cli"}', mtimeMs: 0 })
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await runStep($, STEP)
+  await $.turn.complete(TURN as never)
+  await clock.advance(15000)
+  expect(JSON.parse(fs.files.get(`/home/me/meter/sessions/${SID}.json`)!.text).project).toBe(await shortHash('salt-from-the-cli', 'app'))
+  expect(fs.files.get(SALT)!.text).toBe('{"salt":"salt-from-the-cli"}')
 })

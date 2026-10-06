@@ -354,7 +354,7 @@ claude plugin validate plugins/oxen-pet --strict
 claude plugin test plugins/oxen-pet
 claude plugin validate plugins/oxen-meter --strict
 claude plugin test plugins/oxen-meter
-node --test tools/meter/aggregate.test.mjs
+node --test 'tools/meter/*.test.mjs'
 ```
 
 After one `--plugin-dir` session, `npx -p typescript tsc -p plugins/oxen-pet` type-checks the mod.

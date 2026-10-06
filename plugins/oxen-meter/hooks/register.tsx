@@ -3,7 +3,7 @@ import type { EngineInterface, Register, TurnStepResult } from 'claude-code'
 import { roleOf, summarize, ttlOf } from './analyze'
 import type { Role } from './analyze'
 import { codexCallOf, outcomeOf } from './codex'
-import { dataPathError, dataRootOf, dataTargetError, exportPath, sessionPath } from './dataPath'
+import { dataPathError, dataRootOf, dataTargetError, exportPath, saltPath, sessionPath } from './dataPath'
 import { exportOf, exportText } from './exportFile'
 import { projectLabel, shortHash } from './project'
 import { MAIN, addEvent, addStep, agentCallOf, claudeQuota, newCollector, quotaRecordsOf, stepRecordOf, threadOf } from './record'
@@ -11,7 +11,7 @@ import type { Collector } from './record'
 import { COLORS, filesText, fmtDur, fmtTokens, paneRows, reportText, rowsText, threadLabel } from './report'
 import { RESUME_OPTIONS, coldStartText, freshReason, resolveRecipient, resumeQuestion, resumeRisk, resumeToast } from './resume'
 import type { LiveAgent } from './report'
-import { TOMBSTONE, isExpired, readSessionText, restoreCollector, sessionText } from './sessionFile'
+import { TOMBSTONE, activeAt, isExpired, readSessionText, restoreCollector, sessionText } from './sessionFile'
 import type { SessionFile } from './sessionFile'
 import type { SessionData } from './analyze'
 import { readSettings } from './settings'
@@ -108,22 +108,37 @@ async function versionOf($: EngineInterface) {
   }
 }
 
-/** The user's own salt for hashes, made the first time it is needed. */
-async function saltOf($: EngineInterface) {
-  const salt = await $.store.get(SALT_KEY)
-  if (typeof salt === 'string') {
-    return salt
+/**
+ * The user's own salt for hashes: the one in the data folder, which the CLI reads too, so a session keeps one id in
+ * every export; else the mod's own, made the first time it is needed and written there.
+ */
+async function saltOf($: EngineInterface, root: string | undefined) {
+  if (root !== undefined) {
+    try {
+      const shared = (JSON.parse(await $.fs.read(saltPath(root))) as { salt?: unknown }).salt
+      if (typeof shared === 'string' && shared.length >= 8) {
+        return shared
+      }
+    } catch {
+      // No shared salt yet.
+    }
   }
-  const made = crypto.randomUUID()
-  await $.store.set(SALT_KEY, made)
+  let salt = await $.store.get(SALT_KEY)
+  if (typeof salt !== 'string') {
+    salt = crypto.randomUUID()
+    await $.store.set(SALT_KEY, salt)
+  }
+  if (root !== undefined) {
+    await writeGuarded($, root, saltPath(root), JSON.stringify({ salt })).catch(() => undefined)
+  }
 
-  return made
+  return salt as string
 }
 
 /** The session's project as the records name it, hashed with the user's own salt unless they turned hashing off. */
-async function projectOf($: EngineInterface, hash: boolean) {
+async function projectOf($: EngineInterface, root: string | undefined, hash: boolean) {
   try {
-    return await projectLabel(await $.session.root(), await saltOf($), hash)
+    return await projectLabel(await $.session.root(), await saltOf($, root), hash)
   } catch {
     return ''
   }
@@ -259,7 +274,7 @@ async function readSessions($: EngineInterface, m: Meter, s: Settings, days: num
     }
     const text = await $.fs.read(`${dir}/${f.name}`).catch(() => '')
     const file = readSessionText(text)
-    if (file) {
+    if (file && now - activeAt(file) <= days * DAY_MS) {
       files.push(file)
     } else if (text.trim() === TOMBSTONE) {
       skipped += 1
@@ -289,7 +304,7 @@ async function exportTo($: EngineInterface, m: Meter, s: Settings, arg: string |
   }
   try {
     const { files } = await readSessions($, m, s, days)
-    const salt = await saltOf($)
+    const salt = await saltOf($, m.root)
     const sessions = await Promise.all(files.map(async file => ({ file, id: await shortHash(salt, file.sid) })))
     const day = new Date(await $.clock.now()).toISOString().slice(0, 10)
     const path = exportPath(m.root, day.replace(/-/g, ''), s.userLabel)
@@ -313,7 +328,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     m.root = dataRootOf($.plugin.root, settings.dataDir)
     m.version = await versionOf($)
-    m.project = await projectOf($, settings.hashProject)
+    m.project = await projectOf($, m.root, settings.hashProject)
     m.sid = await sessionIdOr($)
     try {
       m.startedAt = (await $.session.usage()).startedAt

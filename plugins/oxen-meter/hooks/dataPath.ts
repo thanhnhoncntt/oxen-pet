@@ -1,17 +1,27 @@
 import type { FsStat } from 'claude-code'
 
 /**
- * Where the meter may write: its data folder's `sessions/<session id>.json` and `exports/oxen-meter-export-….json`,
- * nothing else. Every write goes through `dataPathError` (the spelling) and `dataTargetError` (where the path leads on
+ * Where the meter may write: its data folder's `sessions/<session id>.json`, `exports/oxen-meter-export-….json`, and
+ * `state/salt.json`, the salt the mod and the CLI share; the CLI (`tools/meter`) also its `state/codex|devin.json|lock`.
+ * Nothing else. Every write goes through `dataPathError` (the spelling) and `dataTargetError` (where the path leads on
  * disk). The data folder's own ancestors may be links (a `.claude` folder kept in a dotfiles repo); from the data folder
  * down, nothing may be.
  */
 
-export type DataKind = 'sessions' | 'exports'
+export type DataKind = 'sessions' | 'exports' | 'salt' | 'import'
 
 const SESSION_NAME = /^[A-Za-z0-9-]{8,64}\.json$/
 const EXPORT_NAME = /^oxen-meter-export-\d{8}(?:-[a-z0-9-]{1,32})?\.json$/
-const NAMES: Record<DataKind, RegExp> = { sessions: SESSION_NAME, exports: EXPORT_NAME }
+const KINDS: Record<DataKind, { folder: string; name: RegExp }> = {
+  sessions: { folder: 'sessions', name: SESSION_NAME },
+  exports: { folder: 'exports', name: EXPORT_NAME },
+  salt: { folder: 'state', name: /^salt\.json$/ },
+  import: { folder: 'state', name: /^(codex|devin)\.(json|lock)$/ },
+}
+/** What the mod writes: its sessions, its exports, and the salt it shares with the CLI. */
+export const MOD_KINDS: readonly DataKind[] = ['sessions', 'exports', 'salt']
+/** What the CLI writes: the same, and the state of its imports with their locks. */
+export const CLI_KINDS: readonly DataKind[] = [...MOD_KINDS, 'import']
 
 const isAbsolute = (p: string) => p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p)
 const hasDotDot = (p: string) => p.split(/[\\/]/).includes('..')
@@ -30,6 +40,8 @@ export function dataRootOf(pluginRoot: string, setting: string): string | undefi
 }
 
 export const sessionPath = (root: string, sid: string) => `${root}/sessions/${sid}.json`
+export const saltPath = (root: string) => `${root}/state/salt.json`
+export const statePath = (root: string, tool: 'codex' | 'devin', ext: 'json' | 'lock') => `${root}/state/${tool}.${ext}`
 
 /** The export file of `day` (YYYYMMDD), with the user's label made safe for a file name. */
 export function exportPath(root: string, day: string, label: string) {
@@ -43,23 +55,23 @@ export function exportPath(root: string, day: string, label: string) {
   return `${root}/exports/oxen-meter-export-${day}${slug ? `-${slug}` : ''}.json`
 }
 
-/** Why the meter must not write `path`, by its spelling alone, or undefined when it may. */
-export function dataPathError(root: string, path: unknown): string | undefined {
+/** Why the meter must not write `path`, by its spelling alone, or undefined when it may: one of `kinds`, the mod's by default. */
+export function dataPathError(root: string, path: unknown, kinds: readonly DataKind[] = MOD_KINDS): string | undefined {
   if (typeof path !== 'string' || path === '') {
     return 'no path.'
   }
   if (!isAbsolute(root) || !isAbsolute(path) || hasDotDot(root) || hasDotDot(path)) {
     return 'the path must be absolute, with no `..`.'
   }
-  for (const kind of Object.keys(NAMES) as DataKind[]) {
-    const folder = `${norm(root)}/${kind}/`
+  for (const kind of kinds) {
+    const folder = `${norm(root)}/${KINDS[kind].folder}/`
     const p = norm(path)
-    if (p.startsWith(folder) && NAMES[kind].test(p.slice(folder.length))) {
+    if (p.startsWith(folder) && KINDS[kind].name.test(p.slice(folder.length))) {
       return undefined
     }
   }
 
-  return `${path} is not a session or export file in ${root}.`
+  return `${path} is not a file the meter writes in ${root}.`
 }
 
 /** What is on disk along an allowed path: its data folder's parent, the data folder, the kind folder and the file, each undefined when missing. */

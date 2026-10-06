@@ -102,3 +102,8 @@ export function restoreCollector(file: SessionFile): Collector {
 }
 
 export const isExpired = (mtimeMs: number, now: number, retentionDays: number) => now - mtimeMs > retentionDays * 86400000
+
+/** When the session last did something: its latest record's end, else its start. An imported file is written long after. */
+export function activeAt(file: SessionFile) {
+  return file.records.reduce((last, r) => Math.max(last, 't' in r ? r.t : r.t1), file.startedAt)
+}

@@ -231,9 +231,20 @@ test('a keepalive is never judged, but the step after it is judged against it', 
 
 test('the quota used adds each window\'s moves within an hour of each other, and starts over when the window resets', () => {
   const q = (atMin: number, used: number, resetsAt: number, windowMin = 10080): MeterRecord => ({ k: 'quota', t: atMin * MIN, thread: MAIN, windowMin, used, resetsAt })
-  const week = 7 * 24 * 60 * MIN
-  const records = [q(0, 50, week), q(10, 53, week), q(20, 55, week), q(180, 70, week), q(190, 72, week), q(200, 1, 2 * week), q(210, 4, 2 * week), q(0, 10, 0, 300), q(30, 30, 0, 300)]
+  const ends = 195 * MIN
+  const next = ends + 7 * 24 * 60 * MIN
+  const records = [q(0, 50, ends), q(10, 53, ends), q(20, 55, ends), q(180, 70, ends), q(190, 72, ends), q(200, 1, next), q(210, 4, next), q(0, 10, 0, 300), q(30, 30, 0, 300)]
   expect(quotaUsed(records)).toEqual({ 10080: 11, 300: 20 })
+})
+
+test('readings from threads that report a little late, or from two accounts at once, never count a point twice, nor a dip as a reset', () => {
+  const q = (atMin: number, used: number, thread = MAIN): MeterRecord => ({ k: 'quota', t: atMin * MIN, thread, windowMin: 10080, used, resetsAt: 1000 })
+  expect(quotaUsed([q(0, 59), q(1, 58, 'a1'), q(2, 59), q(3, 58, 'a1'), q(4, 60), q(5, 59, 'a1')])).toEqual({ 10080: 1 })
+  const twoAccounts = (atMin: number, used: number, resetsAt: number): MeterRecord => ({ k: 'quota', t: atMin * MIN, thread: MAIN, windowMin: 10080, used, resetsAt })
+  const far = 5 * 24 * 60 * MIN
+  expect(quotaUsed([twoAccounts(0, 30, far), twoAccounts(1, 0, far + 22 * 60 * MIN), twoAccounts(2, 30, far), twoAccounts(3, 0, far + 22 * 60 * MIN), twoAccounts(4, 31, far), twoAccounts(5, 1, far + 22 * 60 * MIN)])).toEqual({ 10080: 2 })
+  const noReset = (atMin: number, used: number): MeterRecord => ({ k: 'quota', t: atMin * MIN, thread: MAIN, windowMin: 300, used })
+  expect(quotaUsed([noReset(0, 80), noReset(10, 85), noReset(20, 3), noReset(30, 9)])).toEqual({ 300: 14 })
 })
 
 test('the summary weighs each tool\'s steps its own way, and keeps the Claude Code TTL to Claude Code\'s samples', () => {
