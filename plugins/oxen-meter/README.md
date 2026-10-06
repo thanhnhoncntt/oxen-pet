@@ -71,7 +71,7 @@ draws no pet and no band, so it runs beside [oxen-pet](../../README.md) or alone
 | --- | --- | --- |
 | **Claude Code** | Install, above. | `/meter` opens the pane; `/meter report` adds up the last 7 days. |
 | **Codex CLI** | `node $M setup codex --write`, then open Codex and trust the hooks in `/hooks`. | A warning before a prompt into a thread that sat an hour; `node $M report`. |
-| **Devin CLI** | `node $M setup devin --write`, and set **Cold resume guard** to `ask` ([Settings](#settings)). | The prompt held back once before it resumes a cold session; `node $M report`. |
+| **Devin CLI** | `node $M setup devin --write`, and set **Cold resume guard** to `ask` ([Settings](#settings)): Claude Code's guard asks then too, unless the hooks get a settings file of their own. | The prompt held back once before it resumes a cold session; `node $M report`. |
 | **A team** | Each person runs `/meter export` (or `node $M export`) and sends the file. | `node tools/meter/aggregate.mjs --out report/ exports/` |
 
 `$M` is the companion, `~/.claude/plugins/marketplaces/oxen-pet/tools/meter/oxen-meter.mjs`: see
@@ -315,8 +315,9 @@ Devin's hook configuration alone, after a yes, with a backup. A plugin cannot de
 <summary><b>Does the meter itself cost tokens, or change what Claude sends?</b></summary>
 
 No. It reads the token counts Claude Code reports after each request and passes every request on untouched: it adds
-no system prompt section, no message and no tool, and never rewrites a model or an effort. Its hooks only add to
-what it holds in memory and return; the pane shows how long they take.
+no system prompt section, no message and no tool, and never rewrites a model or an effort. The hooks on every
+request (`turn.step`, `tool.call`) only add to what it holds in memory and return; the pane shows how long they take.
+Files are written by a timer, off that path.
 </details>
 
 <details>
