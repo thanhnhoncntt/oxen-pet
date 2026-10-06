@@ -224,3 +224,37 @@ test('the cache timer turned off shows nothing after a turn', { options: { cache
   expect(tree).toContain('♥ HP')
   expect(tree).not.toContain('cache')
 })
+
+test('the desktop band draws the pet as an SVG, and the HUD under it with each bar as an SVG', async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface: 'desktop', ...BAND })
+  const drawn = JSON.stringify(await band.drawn())
+  expect(drawn).toContain('"alt":"block, idle"')
+  expect(drawn).toContain('♥ HP')
+  expect(drawn).toContain('✦ MP')
+  expect(drawn).toContain('"alt":"HP bar, 86% left"')
+  expect(drawn).toContain('"borderStyle":"round"')
+  expect(drawn).not.toContain('Raster')
+  await band.unmount()
+
+  // The hint line under the prompt stays Claude Code's own on the desktop, so the HUD shows once.
+  const hint = await $.ui.mount({ plugin: 'oxen-pet', surface: 'desktop', ...HINT })
+  expect(JSON.stringify(await hint.drawn())).not.toContain('♥ HP')
+  await hint.unmount()
+})
+
+test('the desktop band draws a scene as one SVG with the ground, and the HUD setting hides its HUD', { options: { hud: false } }, async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+  const scene = { ground: ['gg'], obstacles: [['gg', 'gg']] }
+  await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: { ...BLOCK, palette: { ...BLOCK.palette, g: '#888888' }, scene } })
+
+  const band = await $.ui.mount({ plugin: 'oxen-pet', surface: 'desktop', ...BAND })
+  const drawn = JSON.stringify(await band.drawn())
+  expect(drawn).toContain('"alt":"block, idle, in its scene"')
+  expect(drawn).toContain('viewBox=\\"0 0 99 22\\"')
+  expect(drawn).not.toContain('♥ HP')
+  await band.unmount()
+})

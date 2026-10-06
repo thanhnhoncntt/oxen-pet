@@ -13,7 +13,7 @@ import { previewPathError, previewTargetError } from './previewPath'
 import { readSettings } from './settings'
 import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, trailWidth } from './pixels'
 import type { Body } from './pixels'
-import { GROUND_H, drawBand, layScene, obstacleSpans } from './scene'
+import { DESKTOP_BAND_W, GROUND_H, drawBand, layScene, obstacleSpans } from './scene'
 import type { SceneLayout } from './scene'
 import { lineColor, lineWidth, statusLine, targetOf, toolMode } from './status'
 import type { ToolMode } from './status'
@@ -24,6 +24,8 @@ const STATUS_ROOM = 20 // columns kept free beside a running pet for its status 
 const USAGE_EVERY_BEATS = 20
 const AGENTS_EVERY_BEATS = 5
 const SLOW_BEATS: Partial<Record<Mode, number>> = { idle: 2, sleep: 4 } // ticks per redraw while nothing moves fast
+const SVG_PX = 4 // CSS pixels per pet pixel on the desktop
+const HUD_SVG_PX = 6 // CSS pixels per bar pixel on the desktop, so a bar is as tall as its text
 
 const THEME_KEY = 'theme' // in $.store: the theme set_theme last took
 const OWN_TOOLS = 'mcp__oxen-pet__'
@@ -413,18 +415,57 @@ export const register: Register = (on, options) => {
         )
       }
       if (e.surface === 'desktop') {
+        // The desktop has no Raster: the pet, its scene and the HUD's bars draw as SVG, and the HUD sits in the band,
+        // since the desktop's hint line under the prompt is its own.
         const { Box, Svg, Text } = $.ui.resolve(e)
+        const color = lineColor(a.mode, body.look.lineColors)
+        const rows = settings.hud && hud ? hudRows({ ...hud, cacheMin: cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, now) }, body.look.hud) : []
+        const hudBox = rows.length > 0 && (
+          <Box key="hud" flexDirection="column" alignSelf="flex-start" borderStyle="round" borderColor={frameColor(body.look.hud)} paddingX={1}>
+            {rows.map(r => (
+              <Box key={r.key} alignItems="center">
+                <Text color={r.color}>{r.label} </Text>
+                <Svg source={encodeSvg(r.bar)} alt={`${r.key.toUpperCase()} bar, ${r.pct}% left`} width={BAR_W * HUD_SVG_PX} height={r.bar.h * HUD_SVG_PX} />
+                {r.parts.map((p, i) => (
+                  <Text key={String(i)} color={p.color} bold={p.bold}>
+                    {p.text}
+                  </Text>
+                ))}
+              </Box>
+            ))}
+          </Box>
+        )
+        if (scene && body.scene) {
+          const width = Math.min(scene.width, DESKTOP_BAND_W)
+          const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w))
+          const band = crop(drawBand(body, body.scene, scene, picture, left, now), 0, 0, width, HEIGHT + GROUND_H)
+
+          return (
+            <Box flexDirection="column">
+              <Svg source={encodeSvg(band)} alt={`${body.name}, ${a.mode}, in its scene`} width={width * SVG_PX} height={band.h * SVG_PX} />
+              {line && (
+                <Text color={color} bold>
+                  › {line}
+                </Text>
+              )}
+              {hudBox}
+            </Box>
+          )
+        }
 
         return (
-          <Box alignItems="flex-end">
-            <Box marginLeft={Math.round(a.x)}>
-              <Svg source={encodeSvg(picture)} alt={`${body.name}, ${a.mode}`} width={picture.w * 4} height={80} />
+          <Box flexDirection="column">
+            <Box alignItems="flex-end">
+              <Box marginLeft={Math.round(a.x)}>
+                <Svg source={encodeSvg(picture)} alt={`${body.name}, ${a.mode}`} width={picture.w * SVG_PX} height={HEIGHT * SVG_PX} />
+              </Box>
+              {line && (
+                <Text color={color} bold>
+                  {line}
+                </Text>
+              )}
             </Box>
-            {line && (
-              <Text color={lineColor(a.mode, body.look.lineColors)} bold>
-                {line}
-              </Text>
-            )}
+            {hudBox}
           </Box>
         )
       }

@@ -14,6 +14,8 @@ type Placed = { x: number; rows: string[]; drift?: number }
 export type SceneLayout = { width: number; obstacles: Placed[]; decor: Placed[] }
 
 export const GROUND_H = 2 // pixels: one row of cells below the pet
+/** The widest the desktop draws a band with a scene, in pixels, which keeps its SVG well under the Svg element's 131072 characters. */
+export const DESKTOP_BAND_W = 160
 /** The largest ground tile, obstacle, and decor, in pixels, and how many obstacles and decor a scene keeps. */
 export const SCENE_SIZE = { ground: { w: 16, h: GROUND_H }, sky: { w: 16, h: 12 }, obstacle: { w: 8, h: 6 }, decor: { w: 16, h: HEIGHT }, items: 4 }
 /** The least and most columns between obstacles; the least leaves room to land a leap and take off for the next. */

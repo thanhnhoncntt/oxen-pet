@@ -151,7 +151,8 @@ export function barCanvas(pct: number, [from, to]: Pair, markPct?: number): Canv
 /** One run of a row's text. The reading is bold in its bar's color; the details beside it are grey. */
 export type HudPart = { text: string; color: string; bold?: boolean }
 
-export type HudRow = { key: string; label: string; color: string; cells: string; parts: HudPart[] }
+/** One bar's row: `pct` is its reading, `bar` its pixels, and `cells` those pixels as Raster cells. */
+export type HudRow = { key: string; label: string; color: string; pct: number; bar: Canvas; cells: string; parts: HudPart[] }
 
 // A mid grey, so the details read on a dark terminal and on a light one.
 export const DETAIL_COLOR = '#8b93b8'
@@ -186,14 +187,15 @@ const pairOf = (fill: [string, string] | undefined, fallback: Pair): Pair => (fi
  * the look hides it. A bar's warning colors (yellow and red) replace its fill whatever the look.
  */
 export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
-  const rows: (HudRow & { look: BarLook | false | undefined })[] = []
+  const rows: (Omit<HudRow, 'cells'> & { look: BarLook | false | undefined })[] = []
   const hpFill = h.hp > 50 ? pairOf(look.hp ? look.hp.fill : undefined, GREEN) : h.hp > 25 ? YELLOW : RED
   rows.push({
     key: 'hp',
     look: look.hp,
     label: h.hp < 10 ? '⚠ HP' : '♥ HP',
     color: '#f87171',
-    cells: encodeCells(barCanvas(h.hp, hpFill)),
+    pct: h.hp,
+    bar: barCanvas(h.hp, hpFill),
     parts: [reading(`${h.hp}%`, hpFill), ...(h.hp < 10 ? [{ ...reading('/compact', RED), text: '  /compact' }] : []), ...detail([cache(h.cacheMin)])],
   })
   if (h.mp !== undefined) {
@@ -205,7 +207,8 @@ export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
       look: look.mp,
       label: '✦ MP',
       color: '#7aa7ff',
-      cells: encodeCells(barCanvas(h.mp, mpFill, evenLeft(h.mpResetsInMin, MP_WINDOW_MIN))),
+      pct: h.mp,
+      bar: barCanvas(h.mp, mpFill, evenLeft(h.mpResetsInMin, MP_WINDOW_MIN)),
       parts: [
         reading(`${h.mp}%`, mpFill),
         ...detail([resets(h.mpResetsInMin), empty === undefined ? pace(h.mp, h.mpResetsInMin, MP_WINDOW_MIN) : undefined]),
@@ -220,7 +223,8 @@ export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
       look: look.st,
       label: '◆ ST',
       color: '#fbbf24',
-      cells: encodeCells(barCanvas(h.st, stFill, evenLeft(h.stResetsInMin, ST_WINDOW_MIN))),
+      pct: h.st,
+      bar: barCanvas(h.st, stFill, evenLeft(h.stResetsInMin, ST_WINDOW_MIN)),
       parts: [reading(`${h.st}%`, stFill), ...detail([resets(h.stResetsInMin), pace(h.st, h.stResetsInMin, ST_WINDOW_MIN)])],
     })
   }
@@ -230,7 +234,7 @@ export function hudRows(h: Hud, look: HudLook = {}): HudRow[] {
   // Labels pad to one width, so the bars line up.
   const width = Math.max(0, ...shown.map(r => [...r.label].length))
 
-  return shown.map(r => ({ ...r, label: r.label + ' '.repeat(width - [...r.label].length) }))
+  return shown.map(r => ({ ...r, label: r.label + ' '.repeat(width - [...r.label].length), cells: encodeCells(r.bar) }))
 }
 
 /**

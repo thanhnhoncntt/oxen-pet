@@ -2,8 +2,8 @@ import { expect, test } from 'claude-code/testing'
 
 import { LEAP_MS, leapClipMs, leapX, step } from './anim'
 import type { Activity } from './anim'
-import { HEIGHT, compose } from './pixels'
-import { DRIFT_MS, GROUND_H, SCENE_SIZE, drawBand, layScene, obstacleSpans } from './scene'
+import { HEIGHT, compose, encodeSvg } from './pixels'
+import { DESKTOP_BAND_W, DRIFT_MS, GROUND_H, SCENE_SIZE, drawBand, layScene, obstacleSpans } from './scene'
 import type { Scene } from './scene'
 import { animate, maxSize, readTheme } from './theme'
 
@@ -100,4 +100,16 @@ test('the largest pet clears the tallest, widest obstacle at every frame of a le
       }
     }
   }
+})
+
+test('the busiest scene at the widest desktop band stays under the Svg element\'s 131072 characters', () => {
+  // A checkerboard in every drawing gives the most runs, so the most paths.
+  const checker = (w: number, h: number) => Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => ((x + y) % 2 ? 'a' : 'b')).join(''))
+  const busy: Scene = { ground: checker(16, GROUND_H), sky: checker(16, 12), obstacles: [checker(8, 6)], decor: [checker(16, HEIGHT)], every: 30 }
+  const pet = bodyOf({ name: 'busy', sprite: checker(19, 20), palette: { a: '#123456', b: '#654321' } })
+  const layout = layScene(busy, DESKTOP_BAND_W)
+  const band = drawBand(pet, busy, layout, compose(pet, 'idle', 0, 1), 0, 0)
+
+  expect(band.w).toBe(DESKTOP_BAND_W)
+  expect(encodeSvg(band).length).toBeLessThan(131072)
 })
