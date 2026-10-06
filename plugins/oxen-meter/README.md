@@ -107,6 +107,11 @@ Settings apply after Claude Code restarts.
   - *big first prefix*: a thread's first request carried 40K or more: many MCP servers, tool schemas, a large prompt.
   - *short task on an expensive model*: a subagent on Opus for five steps or fewer. Give such agents a smaller model.
 
+**What it measured so far** (Claude Code 2.1.291, Sonnet 5.5 and Opus 5.5, 2026-10-06): a subagent's cache
+writes were all 5m (an Agent call's split, measured), and a subagent idle 5.4 to 12 minutes wrote its whole context
+again. The main thread stayed warm after 10 minutes idle in an interactive session (1h), but wrote its context again
+after 6 minutes in `claude -p` (5m). Let the meter keep measuring: the TTLs may differ by plan, mode and version.
+
 **Limits.** Claude Code reports a request's cache writes as one number, not split by TTL, so a role's TTL is measured
 only where an Agent call or a model switch reports it, and inferred elsewhere; the report shows the samples behind
 it. The token equivalent leaves out what the price list adds on top, such as long-context pricing.
