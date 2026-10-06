@@ -58,6 +58,7 @@ export async function importDevin(o) {
       const state = saved?.v === STATE_VERSION && saved.sessions !== null && typeof saved.sessions === 'object' ? saved : { v: STATE_VERSION, sessions: {} }
       const since = o.now - Math.min(o.days, o.settings.retentionDays) * DAY_MS
       const list = db.prepare('select id, working_directory as cwd, created_at as createdAt, last_activity_at as activeAt from sessions').all()
+      const guard = readJson(dataPath.statePath(o.root, 'devin', 'guard.json'))
       const written = []
       for (const s of list) {
         const active = Number(s.activeAt) < 1e12 ? Number(s.activeAt) * 1000 : Number(s.activeAt)
@@ -68,6 +69,8 @@ export async function importDevin(o) {
         const records = devinLog.devinRecords(rows)
         const c = record.newCollector()
         devinLog.applyDevin(c, records)
+        // The hooks' runs for this session, each timed by the hook itself (lib/hook.mjs keeps them).
+        c.timings = structuredClone(guard?.timings?.[s.id] ?? {})
         const sid = `devin-${SESSION_ID.test(s.id) ? s.id : await project.shortHash(o.salt, s.id)}`
         const path = dataPath.sessionPath(o.root, sid)
         const existing = sessionFile.readSessionText(readText(path) ?? '')
@@ -89,6 +92,21 @@ export async function importDevin(o) {
 
       return { sessions: written }
     })
+  } finally {
+    db.close()
+  }
+}
+
+/** A Devin session's main thread's last request (a keepalive too: it reads the cache): when it went, its context and model. */
+export async function lastDevinRequest(devinHome, session) {
+  const db = await openDevin(devinHome)
+  if (db === undefined) {
+    return undefined
+  }
+  try {
+    const steps = devinLog.devinRecords(db.prepare(NODES).all(session)).steps.filter(s => s.thread === record.MAIN)
+    const last = steps.at(-1)
+    return last === undefined ? undefined : { t0: last.t0, ctx: last.ctx, model: last.model }
   } finally {
     db.close()
   }

@@ -160,7 +160,7 @@ the CLI's input; the others print nothing.
 ### The oxen-meter CLI (`tools/meter/oxen-meter.mjs`)
 
 Codex CLI and Devin CLI cannot load a Claude Code mod, so the meter reads their logs with a Node script a person runs
-(`import`, `report`, `export`, `setup`), or a Codex hook runs (`hook codex`). It is not part of the mod: Claude Code never loads it,
+(`import`, `report`, `export`, `setup`), or a Codex or Devin hook runs (`hook codex`, `hook devin`). It is not part of the mod: Claude Code never loads it,
 and it comes with this repo, or the clone Claude Code keeps of the marketplace (`~/.claude/plugins/marketplaces`). It
 runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files and guards.
 
@@ -182,10 +182,12 @@ runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files a
   `dataTargetError` on `lstat`/`realpath`: `sessions/codex-<session id>.json`, `exports/…`, `state/salt.json`, and its
   own `state/codex.json` and `state/devin.json` (where each file's read stopped, which Devin sessions it read),
   `state/codex.lock`, `state/devin.lock` (created exclusively, removed when the import ends, taken over after a
-  minute), and `state/codex.guard.json` (the hooks' run times, and which idle spell a prompt was held back in).
+  minute), and `state/codex.guard.json`, `state/devin.guard.json` (the hooks' run times, and which idle spell a prompt
+  was held back in).
   Nothing else in the data folder, and nothing through a symbolic link.
 - **`setup codex --write`** writes `~/.codex/hooks.json`, after keeping the old one in `hooks.json.oxen-meter.bak`,
-  and only after a yes on the terminal (or `--yes`). `lib/setup.mjs`'s `hookConfigError` holds it to those two files
+  and only after a yes on the terminal (or `--yes`); `setup devin --write` the `hooks` key of
+  `~/.config/devin/config.json` alike, keeping every other key. Never `~/.claude/settings.json`, which Devin reads too. `lib/setup.mjs`'s `hookConfigError` holds it to those two files
   (and Devin's `~/.config/devin/config.json` with its backup): a plain file or none yet, in a folder that is there, not
   a symbolic link, landing where it is spelled. It keeps every hook the user has, drops its own older entries, and
   refuses a file that is not JSON. Without `--write` it only prints. Codex runs a new hook only after the user trusts it
@@ -199,6 +201,11 @@ runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files a
   context and holds no tool call back. It exits 0 whatever happens, with everything but Node's built-ins loaded inside
   a `try` (`oxen-meter.mjs`), so a broken install prints nothing rather than a failed hook. Measured on Codex 0.160.1:
   about 70 to 180 ms a run, Node's start included.
+- **`hook devin`** imports the session at a turn's or the session's end, and on a prompt in `ask` mode reads the
+  session's metadata from Devin's database (read-only, as above) to hold the prompt back once per idle spell. Devin
+  shows the user a held-back prompt's reason and no other hook message, so in `warn` mode it prints nothing. Devin's
+  payload carries no transcript path; the session id is the database's. Measured on Devin 3000.11.3: about 150 to
+  460 ms a run.
 - **The salt** in `state/salt.json` is shared with the mod, so a session keeps one hashed id in every export.
 
 ```bash

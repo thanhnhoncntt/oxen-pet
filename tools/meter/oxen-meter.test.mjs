@@ -311,3 +311,45 @@ test('setup never writes through a link, nor over a hooks file that is not JSON'
   assert.match((await run(['setup', 'codex'], { ...h.flags, write: true, yes: true })).text, /symbolic link/)
   assert.equal(readFileSync(elsewhere, 'utf8'), '{}')
 })
+
+const devinPrompt = (sid = 'hallowed-cone') => JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: sid, prompt_id: 'p1', prompt: 'CANARY_DEVIN_PROMPT' })
+
+test('Devin: in ask mode a prompt into a session idle past Cold after is held back once; warn shows nothing, which Devin cannot', async () => {
+  const h = home()
+  devinDb(h.flags.devinHome, Date.now() - 2 * 3600000).db.close()
+  const asked = { ...settingsWith(h, { resumeGuard: 'ask' }), input: devinPrompt() }
+  const first = JSON.parse((await run(['hook', 'devin'], asked)).text)
+  assert.equal(first.decision, 'block')
+  assert.match(first.reason, /^oxen-meter: this thread sat 1h5\dm\. Its 41K context .* Press ↑ and Enter to send it anyway/)
+  assert.equal((await run(['hook', 'devin'], asked)).text, '')
+  assert.equal((await run(['hook', 'devin'], { ...settingsWith(h, { resumeGuard: 'warn' }), input: devinPrompt() })).text, '')
+  assert.equal((await run(['hook', 'devin'], { ...settingsWith(h, { resumeGuard: 'ask' }), input: devinPrompt('no-such-session') })).text, '')
+})
+
+test('Devin: a turn\'s end imports its session, and the hooks\' times go with it', async () => {
+  const h = home()
+  devinDb(h.flags.devinHome, Date.now() - 3600000).db.close()
+  await run(['hook', 'devin'], { ...settingsWith(h, { resumeGuard: 'ask' }), input: devinPrompt() })
+  assert.equal((await run(['hook', 'devin'], { ...h.flags, input: JSON.stringify({ hook_event_name: 'Stop', session_id: 'hallowed-cone', prompt_id: 'p1', stop_hook_active: false, last_assistant_message: 'CANARY' }) })).text, '')
+  const file = JSON.parse(readFileSync(join(h.data, 'sessions', 'devin-hallowed-cone.json'), 'utf8'))
+  assert.equal(file.tool, 'devin')
+  assert.equal(file.timings['devin UserPromptSubmit'].count, 1)
+  assert.equal(existsSync(join(h.data, 'sessions', `codex-${ROOT_ID}.json`)), false)
+})
+
+test('setup devin adds its hooks under "hooks" in Devin\'s config, keeping every other setting and a backup', async () => {
+  const h = home()
+  const dir = join(h.dir, '.config', 'devin')
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, 'config.json')
+  writeFileSync(path, JSON.stringify({ agent: { model: 'swe-2-max' }, hooks: { PreToolUse: [{ matcher: 'exec', hooks: [{ type: 'command', command: 'mine' }] }] } }))
+  await run(['setup', 'devin'], { ...h.flags, write: true, yes: true })
+  await run(['setup', 'devin'], { ...h.flags, write: true, yes: true })
+  const merged = JSON.parse(readFileSync(path, 'utf8'))
+  assert.deepEqual(merged.agent, { model: 'swe-2-max' })
+  assert.deepEqual(merged.hooks.PreToolUse, [{ matcher: 'exec', hooks: [{ type: 'command', command: 'mine' }] }])
+  assert.deepEqual(Object.keys(merged.hooks).sort(), ['PreToolUse', 'SessionEnd', 'Stop', 'UserPromptSubmit'])
+  assert.equal(merged.hooks.UserPromptSubmit.length, 1)
+  assert.match(merged.hooks.Stop[0].hooks[0].command, /oxen-meter\.mjs" hook devin/)
+  assert.ok(existsSync(`${path}.oxen-meter.bak`))
+})

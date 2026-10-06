@@ -1,10 +1,12 @@
-// The CLI as a Codex hook: `node oxen-meter.mjs hook codex`, with the event's JSON on stdin. It imports the thread
-// that just stopped, warns before a prompt or a follow-up resumes a thread whose cache is likely gone, and in `ask` mode
-// holds a prompt back once. It answers with one JSON object or nothing, and exits 0 whatever happens: a failing hook
-// must never stop the user's work.
+// The CLI as a Codex or Devin hook: `node oxen-meter.mjs hook codex|devin`, with the event's JSON on stdin. It imports
+// the thread or session that just stopped, warns before a prompt or a follow-up resumes a thread whose cache is likely
+// gone, and in `ask` mode holds a prompt back once. It answers with one JSON object or nothing, and exits 0 whatever
+// happens: a failing hook must never stop the user's work. Devin shows no message from a hook, only a held-back
+// prompt's reason, so for Devin `warn` prints nothing and `ask` holds the prompt back.
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs'
 
 import { importCodex } from './codex.mjs'
+import { importDevin, lastDevinRequest } from './devin.mjs'
 import { readJson, readText, writeGuarded } from './files.mjs'
 import { codexLog, dataPath, hookGuard, record, report, sessionFile, timing } from './plugin.mjs'
 
@@ -69,8 +71,8 @@ function lastStepOf(file, thread) {
   return last
 }
 
-/** What the hook answers to `e`, and does: imports, and the guard's notes of what it held back. */
-async function answerOf(e, o, guard) {
+/** What the Codex hook answers to `e`, and does: imports, and the guard's notes of what it held back. */
+async function codexAnswer(e, o, guard) {
   const event = e.hook_event_name
   const session = typeof e.session_id === 'string' ? e.session_id : ''
   if (event === 'Stop' || event === 'SessionEnd' || event === 'SubagentStop') {
@@ -105,29 +107,56 @@ async function answerOf(e, o, guard) {
   return undefined
 }
 
+/** What the Devin hook answers to `e`, and does: at a turn's or the session's end, its import; on a prompt, in ask mode, the guard. */
+async function devinAnswer(e, o, guard) {
+  const session = typeof e.session_id === 'string' ? e.session_id : undefined
+  if (session === undefined) {
+    return undefined
+  }
+  if (e.hook_event_name === 'Stop' || e.hook_event_name === 'SessionEnd') {
+    await importDevin({ ...o, only: session, days: o.settings.retentionDays })
+    return undefined
+  }
+  if (e.hook_event_name !== 'UserPromptSubmit' || o.settings.resumeGuard !== 'ask') {
+    return undefined
+  }
+  const last = await lastDevinRequest(o.devinHome, session)
+  const risk = hookGuard.idleRisk(last, o.now, { coldAfterMin: o.settings.coldAfterMin, coldTokens: o.settings.coldTokens, cachedWeight: o.settings.cachedWeight, tool: 'devin' })
+  const answer = hookGuard.promptAnswer(risk, 'ask', risk !== undefined && guard.asked[session] === last.t0)
+  if (answer !== undefined) {
+    guard.asked[session] = last.t0
+  }
+  return answer
+}
+
+const ANSWERS = { codex: codexAnswer, devin: devinAnswer }
+
 /**
- * Runs the Codex hook for the event `input` (stdin's text); resolves to what it prints, or '' for nothing. Its own
- * time, from Node's start, goes with the session for the report.
+ * Runs `tool`'s hook for the event `input` (stdin's text); resolves to what it prints, or '' for nothing. Its own time,
+ * from Node's start, goes with the session for the report.
  */
-export async function codexHook(input, o) {
+export async function runHook(tool, input, o) {
   let e
   try {
     e = JSON.parse(input)
   } catch {
     return ''
   }
-  const guardPath = dataPath.statePath(o.root, 'codex', 'guard.json')
+  if (e === null || typeof e !== 'object' || ANSWERS[tool] === undefined) {
+    return ''
+  }
+  const guardPath = dataPath.statePath(o.root, tool, 'guard.json')
   const saved = readJson(guardPath)
   const guard = saved?.v === GUARD_VERSION ? { asked: saved.asked ?? {}, timings: saved.timings ?? {}, seen: saved.seen ?? {} } : { asked: {}, timings: {}, seen: {} }
   let answer
   try {
-    answer = await answerOf(e, o, guard)
+    answer = await ANSWERS[tool](e, o, guard)
   } catch {
     answer = undefined
   }
   const session = typeof e.session_id === 'string' ? e.session_id : ''
   if (session !== '') {
-    timing.noteTiming((guard.timings[session] ??= {}), `codex ${e.hook_event_name}`, performance.now())
+    timing.noteTiming((guard.timings[session] ??= {}), `${tool} ${e.hook_event_name}`, performance.now())
     guard.seen[session] = o.now
   }
   // Sessions not seen for the retention days leave the guard's notes.

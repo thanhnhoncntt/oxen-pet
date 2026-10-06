@@ -1,6 +1,7 @@
-// `setup codex`: the hooks the CLI runs in Codex, added to ~/.codex/hooks.json beside the user's own. Without --write it
-// prints what it would add; with it, after a yes, it keeps a backup and writes the merged file. It writes no other file:
-// `hookConfigError` holds it to Codex's hooks.json (and Devin's config.json) and their backups.
+// `setup codex|devin`: the hooks the CLI runs in Codex or Devin, added to ~/.codex/hooks.json or to the `hooks` of
+// ~/.config/devin/config.json, beside the user's own. Without --write it prints what it would add; with it, after a
+// yes, it keeps a backup and writes the merged file. It writes no other file: `hookConfigError` holds it to those two
+// files and their backups.
 import { realpathSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
@@ -64,6 +65,14 @@ export function codexHooks(command) {
     SubagentStop: [{ hooks: [later] }],
     SessionEnd: [{ hooks: [later] }],
   }
+}
+
+/** Devin's hooks for `command`: the prompt guard, which only `ask` mode uses, and the imports at a turn's and a session's end. */
+export function devinHooks(command) {
+  const now = { type: 'command', command, timeout: 10 }
+  const later = { type: 'command', command, timeout: 120 }
+
+  return { UserPromptSubmit: [{ hooks: [now] }], Stop: [{ hooks: [later] }], SessionEnd: [{ hooks: [later] }] }
 }
 
 /** `config` (a hooks.json's value, or one with a `hooks` key) with the CLI's old hooks taken out and `ours` added. */

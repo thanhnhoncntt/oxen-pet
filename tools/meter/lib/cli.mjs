@@ -8,14 +8,14 @@ import { importCodex, summaryOptions } from './codex.mjs'
 import { importDevin } from './devin.mjs'
 import { configOf, saltOf } from './config.mjs'
 import { readText, statOf, writeGuarded } from './files.mjs'
-import { codexHook } from './hook.mjs'
-import { BACKUP, codexHooks, hookCommand, hookConfigError, mergeHooks, readConfig } from './setup.mjs'
+import { runHook } from './hook.mjs'
+import { BACKUP, codexHooks, devinHooks, hookCommand, hookConfigError, mergeHooks, readConfig } from './setup.mjs'
 import { analyze, dataPath, exportFile, project, report as reportModule, sessionFile, versionOf } from './plugin.mjs'
 
 const DAY_MS = 86400000
 const DAYS = { import: 30, report: 7, export: 30 }
 const MAX_DAYS = 365
-const USAGE = 'usage: node tools/meter/oxen-meter.mjs <import [days] | report [days] | export [days] | setup codex [--write [--yes]] | hook codex> [--data <folder>] [--codex-home <folder>] [--devin-home <folder>] [--claude-settings <file>]'
+const USAGE = 'usage: node tools/meter/oxen-meter.mjs <import [days] | report [days] | export [days] | setup codex|devin [--write [--yes]] | hook codex|devin> [--data <folder>] [--codex-home <folder>] [--devin-home <folder>] [--claude-settings <file>]'
 
 /** The days an argument asks for, else `fallback`. */
 function daysOf(arg, fallback) {
@@ -81,14 +81,19 @@ function writeHookConfig(path, text, home) {
   writeFileSync(path, text)
 }
 
-/** `setup codex`: prints the hooks it would add, or with --write, after a yes, adds them with a backup. */
+const TRUST = {
+  codex: 'Codex runs a new hook only once you trust it: open Codex and run /hooks to review them.',
+  devin: 'Devin loads them in its next session; /hooks there lists them. Devin shows no message from a hook, so only Cold resume guard set to ask holds a prompt back, once, before a cold resume.',
+}
+
+/** `setup codex|devin`: prints the hooks it would add, or with --write, after a yes, adds them with a backup. */
 async function setup(tool, flags, config) {
-  if (tool !== 'codex') {
+  if (tool !== 'codex' && tool !== 'devin') {
     return { code: 1, text: USAGE }
   }
-  const path = join(config.home, '.codex', 'hooks.json')
+  const path = tool === 'codex' ? join(config.home, '.codex', 'hooks.json') : join(config.home, '.config', 'devin', 'config.json')
   const command = hookCommand(process.execPath, fileURLToPath(new URL('../oxen-meter.mjs', import.meta.url)), tool, flags)
-  const ours = codexHooks(command)
+  const ours = tool === 'codex' ? codexHooks(command) : devinHooks(command)
   const current = readConfig(path)
   if (current === undefined) {
     return { code: 1, text: `${path} is not JSON: fix it or move it, then run setup again.` }
@@ -117,7 +122,7 @@ async function setup(tool, flags, config) {
   }
   writeHookConfig(path, `${JSON.stringify(mergeHooks(current, ours), null, 2)}\n`, config.home)
 
-  return { code: 0, text: `Added oxen-meter's hooks to ${path}${existsSync(`${path}${BACKUP}`) ? ` (the old file is in ${path}${BACKUP})` : ''}. Codex runs a new hook only once you trust it: open Codex and run /hooks to review them.\nEach runs ${process.execPath}: after you upgrade Node, run setup again.` }
+  return { code: 0, text: `Added oxen-meter's hooks to ${path}${existsSync(`${path}${BACKUP}`) ? ` (the old file is in ${path}${BACKUP})` : ''}. ${TRUST[tool]}\nEach runs ${process.execPath}: after you upgrade Node, run setup again.` }
 }
 
 /** Runs one command; resolves to what it prints. */
@@ -133,11 +138,11 @@ export async function run(argv, flags = {}) {
   if (command === 'hook') {
     // A hook never fails the tool that runs it: whatever goes wrong, it prints nothing and exits 0.
     try {
-      if (arg !== 'codex' || config.root === undefined) {
+      if ((arg !== 'codex' && arg !== 'devin') || config.root === undefined) {
         return { code: 0, text: '' }
       }
       const input = flags.input ?? readFileSync(0, 'utf8')
-      return { code: 0, text: await codexHook(input, { ...config, now: flags.now ?? Date.now(), days: config.settings.retentionDays, salt: saltOf(config.root) }) }
+      return { code: 0, text: await runHook(arg, input, { ...config, now: flags.now ?? Date.now(), days: config.settings.retentionDays, salt: saltOf(config.root) }) }
     } catch {
       return { code: 0, text: '' }
     }

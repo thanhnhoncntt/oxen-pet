@@ -3,8 +3,8 @@
 // sessions into the meter's data folder, prints the report over every tool, and writes the export for the team.
 // Run: node tools/meter/oxen-meter.mjs <import [days] | report [days] | export [days]> [--data <folder>]
 //        [--codex-home <folder>] [--devin-home <folder>] [--claude-settings <file>]
-//      node tools/meter/oxen-meter.mjs setup codex [--write [--yes]]   adds the CLI's hooks to Codex
-//      node tools/meter/oxen-meter.mjs hook codex                       what those hooks run, the event on stdin
+//      node tools/meter/oxen-meter.mjs setup codex|devin [--write [--yes]]   adds the CLI's hooks to Codex or Devin
+//      node tools/meter/oxen-meter.mjs hook codex|devin                       what those hooks run, the event on stdin
 // Needs Node 22.18 or later. It reads the files named below and writes only to the data folder, through the mod's guard;
 // it makes no network request and starts no process. See SECURITY-AUDIT.md.
 import './lib/quiet.mjs'
