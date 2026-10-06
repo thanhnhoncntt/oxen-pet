@@ -1,206 +1,184 @@
 {
   "name": "Luffy",
   "sprite": [
-    "....hhhhhhh....",
-    "...hhhhhhhhh...",
-    "...bbbbbbbbb...",
-    "HhhhhhhhhhhhhhH",
-    ".kkksssksssskkk",
-    ".ksssssssssssk.",
-    ".sssssssssssss.",
-    ".ssrssssssssss.",
-    "..sssmmmmmsss..",
-    "...SsssssssS..."
+    "...............",
+    ".....HHHHH.....",
+    ".....rrrrr.....",
+    "...hhsososhh...",
+    ".....sstss.....",
+    "....srrsrrs....",
+    "....sraaars....",
+    ".....jj.jj.....",
+    ".....s...s.....",
+    "....pp...pp...."
   ],
   "palette": {
-    "h": "#e8c35a",
-    "H": "#b8902f",
-    "b": "#d03a2f",
-    "k": "#1f1f24",
-    "s": "#f4c69a",
-    "S": "#d9a273",
-    "r": "#b5524a",
-    "m": "#7a2b2b",
+    "H": "#f7d67a",
+    "r": "#e65f43",
+    "h": "#e8b74c",
+    "s": "#ffc58e",
+    "o": "#30313e",
     "t": "#ffffff",
-    "o": "#7a3b1f",
-    "e": "#c8553d",
+    "a": "#f1c957",
+    "j": "#578dab",
+    "p": "#805544",
+    "v": "#efc4d1",
+    "V": "#f6e3e8",
+    "k": "#252b34",
+    "x": "#353342",
+    "z": "#c85c74",
+    "L": "#cfdeeb",
+    "q": "#ffdab9",
+    "g": "#75334e",
+    "l": "#b9a0d4",
+    "Z": "#ffd27d",
+    "R": "#c57587",
+    "P": "#bc6782",
+    "u": "#7a3b1f",
+    "M": "#c8553d",
     "n": "#f1e8c8",
     "O": "#8a5a2b",
     "y": "#e8c35a",
     "G": "#7cbf5a",
     "E": "#1f1f24",
-    "f": "#f4c69a",
-    "F": "#d9a273",
-    "q": "#7a4a2a",
     "Y": "#ffe25a",
     "w": "#2e7fd9",
     "W": "#9fd7ff",
-    "d": "#8a5a2b",
-    "D": "#5a3a1a",
+    "B": "#8a5a2b",
+    "N": "#5a3a1a",
     "K": "#2a2a33",
-    "x": "#f5f3ff"
+    "c": "#f9f0d7"
   },
-  "eyes": [
-    [
-      4,
-      5
-    ],
-    [
-      9,
-      5
-    ]
-  ],
   "miniSprite": [
-    "..h..",
     ".hhh.",
-    ".bbb.",
-    "hhhhh"
+    "hhhhh",
+    ".sss.",
+    ".rrr.",
+    ".o.o."
   ],
   "forms": {
     "bash": {
       "sprite": [
-        ".v..hhhhhhh.v..",
-        "v.vhhhhhhhhhv.v",
-        "...bbbbbbbbb...",
-        "HhhhhhhhhhhhhhH",
-        ".kkksssksssskkk",
-        "vksssssssssssk.",
-        ".sssssssssssss.",
-        ".ssrssssssssssv",
-        "..sssmmmmmsss..",
-        "...SsssssssS..."
-      ],
-      "palette": {
-        "s": "#f49ab0",
-        "S": "#d9738f",
-        "r": "#c0566e",
-        "v": "#e6ebf2"
-      }
+        "...............",
+        ".....HHHHH.....",
+        "..v..rrrrr.....",
+        "...hhsososhhZ..",
+        ".....sstss..Vxx",
+        "....srrsrrxxxxx",
+        "....sraaars....",
+        ".....jj.jj.....",
+        ".....s...s.....",
+        "....pp...pp...."
+      ]
     },
     "run": {
       "sprite": [
-        ".v..hhhhhhh.v..",
-        "v.vhhhhhhhhhv.v",
-        "...bbbbbbbbb...",
-        "HhhhhhhhhhhhhhH",
-        ".kkksssksssskkk",
-        "vksssssssssssk.",
-        ".sssssssssssss.",
-        ".ssrssssssssssv",
-        "..sssmmmmmsss..",
-        "...SsssssssS..."
-      ],
-      "palette": {
-        "s": "#f49ab0",
-        "S": "#d9738f",
-        "r": "#c0566e",
-        "v": "#e6ebf2"
-      }
+        "...............",
+        ".....HHHHH.....",
+        "..v..rrrrr.....",
+        "...hhsososhh...",
+        ".....sstss..V..",
+        "....srrsrrs....",
+        "....sraaars....",
+        ".....jj.jj.....",
+        ".....s...s.....",
+        "....pp...pp...."
+      ]
     },
     "jump": {
       "sprite": [
-        ".v..hhhhhhh.v..",
-        "v.vhhhhhhhhhv.v",
-        "...bbbbbbbbb...",
-        "HhhhhhhhhhhhhhH",
-        ".kkksssksssskkk",
-        "vksssssssssssk.",
-        ".sssssssssssss.",
-        ".ssrssssssssssv",
-        "..sssmmmmmsss..",
-        "...SsssssssS..."
-      ],
-      "palette": {
-        "s": "#f49ab0",
-        "S": "#d9738f",
-        "r": "#c0566e",
-        "v": "#e6ebf2"
-      }
+        "...............",
+        ".....HHHHH.....",
+        "..v..rrrrr.....",
+        "...hhsososhh...",
+        ".....sstss..V..",
+        "....srrsrrs....",
+        "....sraaars....",
+        ".....jj.jj.....",
+        ".....s...s.....",
+        "....pp...pp...."
+      ]
     },
     "edit": {
       "sprite": [
-        "....hhhhhhh....",
-        "...hhhhhhhhh...",
-        "...bbbbbbbbb...",
-        "HhhhhhhhhhhhhhH",
-        ".kkksssksssskkk",
-        ".ksssssssssssk.",
-        "Ssssssssssssss.",
-        "SssrsssssssssS.",
-        ".Sssssmmmsssss.",
-        "..SSsssssssSS.."
+        "...............",
+        ".....HHHHH.....",
+        ".....rrrrr.....",
+        "...hhsososhh...",
+        ".....sstss.xRRx",
+        "....srrsrrxxxxx",
+        "....sraaarsxxxx",
+        ".....jj.jj.xxxx",
+        ".....s...s.....",
+        "....pp...pp...."
+      ]
+    },
+    "agent": {
+      "sprite": [
+        "...............",
+        ".....HHHHH.....",
+        ".....rrrrr.....",
+        "...hhsososhsss.",
+        ".....sstss...ss",
+        "....srrsrrsssss",
+        "....sraaars....",
+        ".....jj.jj.sss.",
+        ".....s...s.....",
+        "....pp...pp...."
+      ]
+    },
+    "error": {
+      "sprite": [
+        ".......k.......",
+        "....kkkkkkk....",
+        ".....kkkkk.....",
+        ".....sosos.....",
+        ".....sstss...xx",
+        "..xxssssssxxxxx",
+        "..xxssaaassxx..",
+        ".....kk.kk.....",
+        ".....s...s.....",
+        "....pp...pp...."
       ]
     },
     "guard": {
       "sprite": [
-        "g...hhhhhhh...g",
-        ".g.hhhhhhhhh.g.",
-        "...bbbbbbbbb...",
-        "HhhhhhhhhhhhhhH",
-        "xkkkRRRkRRRRkkx",
-        "gkRRRRRRRRRRRkg",
-        "xRRRRRRRRRRRRRx",
-        ".RRxRRRRRRRxRR.",
-        "..RRmmtttmmRR..",
-        "...xRRRRRRRx..."
-      ],
-      "palette": {
-        "R": "#c8402e",
-        "x": "#1a1012",
-        "g": "#8f95a3"
-      }
-    },
-    "error": {
-      "sprite": [
-        "g...hhhhhhh...g",
-        ".g.hhhhhhhhh.g.",
-        "...bbbbbbbbb...",
-        "HhhhhhhhhhhhhhH",
-        "xkkkRRRkRRRRkkx",
-        "gkRRRRRRRRRRRkg",
-        "xRRRRRRRRRRRRRx",
-        ".RRxRRRRRRRxRR.",
-        "..RRmmtttmmRR..",
-        "...xRRRRRRRx..."
-      ],
-      "palette": {
-        "R": "#c8402e",
-        "x": "#1a1012",
-        "g": "#8f95a3"
-      }
+        ".......k.......",
+        "....kkkkkkk....",
+        ".....kkkkk.....",
+        ".....sosos.....",
+        ".....sstss.....",
+        "..xxsssssssxz..",
+        "..xxssaaassxx..",
+        ".....kk.kk.....",
+        ".....s...s.....",
+        "....pp...pp...."
+      ]
     },
     "cheer": {
       "sprite": [
-        ".WW.WWW.WWW.WW.",
-        "WWWWWWWWWWWWWWW",
-        "WWLWWWLWWWLWWLW",
-        "WWWLsssssssLWWW",
-        "WWsssssssssssWW",
-        "LWsssssssssssWL",
-        ".sssssssssssss.",
-        ".smmmmmmmmmmms.",
-        ".smtttttttttms.",
-        "..smmmmmmmmms.."
-      ],
-      "palette": {
-        "W": "#f5f3ff",
-        "L": "#b8a4e3",
-        "s": "#e9b98a",
-        "m": "#7a1f2b"
-      },
-      "outline": "L",
-      "eyeColor": "#c0303a"
+        "...............",
+        "......tLt......",
+        ".tt.ttttttt.tt.",
+        "t..ttqgqgqtt..t",
+        "t.tL.qqtqq.tL.t",
+        ".tt.qttqttq.tt.",
+        "..t.qtllltq.t..",
+        ".....tt.tt.....",
+        ".....q...q.....",
+        "....pp...pp...."
+      ]
     }
   },
   "props": {
     "read": [
       [
-        "....ooo..",
-        "...oeeeo.",
-        "..oeeeeeo",
-        "..oeeeeeo",
-        "...oeeeo.",
-        "..n.ooo..",
+        "....uuu..",
+        "...uMMMu.",
+        "..uMMMMMu",
+        "..uMMMMMu",
+        "...uMMMu.",
+        "..n.uuu..",
         ".n.......",
         "nn......."
       ]
@@ -227,127 +205,85 @@
         ".GGGGGGGG..."
       ]
     ],
-    "edit": [
-      [
-        "..qqqqqqqq..",
-        ".qfFqfFqfFq.",
-        "qffFffFffFfq",
-        "qffffffffffq",
-        "qffffffffffq",
-        "qFffffffffFq",
-        ".qFFFFFFFFq.",
-        "..qqqqqqqq..",
-        "...qffffq...",
-        "...qffffq...",
-        "............",
-        "............",
-        "............",
-        "............",
-        "............"
-      ],
-      [
-        "..qqqqqqqq..",
-        ".qfFqfFqfFq.",
-        "qffFffFffFfq",
-        "qffffffffffq",
-        "qffffffffffq",
-        "qFffffffffFq",
-        ".qFFFFFFFFq.",
-        "..qqqqqqqq..",
-        "...qffffq...",
-        "...qffffq..."
-      ],
-      [
-        "..qqqqqqqq..",
-        ".qfFqfFqfFq.",
-        "qffFffFffFfq",
-        "qffffffffffq",
-        "qffffffffffq",
-        "qFffffffffFq",
-        ".qFFFFFFFFq.",
-        "..qqqqqqqq..",
-        "Y..qffffq..Y",
-        ".Y.qffffq.Y."
-      ]
-    ]
+    "edit": false
   },
   "lines": {
     "idle": [
-      "I'm gonna be King of the Pirates!",
-      "where's the meat?",
-      "shishishi",
-      "Sanji! I'm hungry!",
-      "is there an adventure?"
+      "Gonna be King of the Pirates!",
+      "Where's the meat?",
+      "Shishishi!",
+      "Sanji! I'm hungry!"
     ],
     "sleep": [
-      "zzz… meat…",
+      "Zzz… dreaming of meat…",
       "zzz… one more bite…"
     ],
     "think": [
-      "hmm… is it meat?",
-      "thinking is hard…",
+      "Hmm… is it meat?",
+      "Thinking is hard.",
       "I don't get it, but okay!"
     ],
     "read": [
-      "reading {}… boring",
+      "reading {}… boring.",
       "is there meat in {}?",
       "Robin, what does this say?"
     ],
     "search": [
       "hunting for \"{}\"",
-      "treasure hunt!",
-      "where'd it go?"
+      "Finding the treasure!",
+      "looking under every file"
     ],
     "edit": [
       "Gear Third! smashing {}",
       "Gomu Gomu no Elephant Gun!",
-      "Gear Third!"
+      "Bigger fist. Bigger adventure."
     ],
     "bash": [
       "Gear Second! $ {}",
       "Gomu Gomu no Jet Pistol!",
-      "Gear Second!"
+      "Gomu Gomu no Red Hawk!"
     ],
     "web": [
       "puru puru puru… {}",
       "calling the Den Den Mushi",
-      "news from {}"
+      "Exploring the world!"
     ],
     "agent": [
-      "nakama, go!",
-      "the crew's on it",
+      "Nakama, go!",
+      "Gomu Gomu no Gatling!",
       "Zoro, don't get lost!"
     ],
     "run": [
-      "boing boing!",
+      "Zoom, zoom!",
       "Gomu Gomu no Rocket!",
-      "full speed ahead!"
+      "Full speed ahead!"
     ],
     "jump": [
-      "let's set sail!",
-      "adventure!"
+      "Here we go!",
+      "Let's set sail!"
     ],
     "cheer": [
-      "shishishi! freedom!",
-      "the drums of liberation!",
-      "we did it, nakama!"
+      "Shishishi! Freedom!",
+      "The drums of liberation!",
+      "We did it, crew!",
+      "Gomu Gomu no Bajrang Gun!"
     ],
     "error": [
       "Gear Fourth! Boundman!",
-      "that hurt… once more!",
-      "I'll beat it next time!"
+      "Gomu Gomu no Kong Gun!",
+      "That hurt… once more!"
     ],
     "guard": [
-      "not on my ship!",
-      "hold on, nakama!",
+      "Not on my ship!",
+      "Hold on, nakama!",
       "Gear Fourth: I won't let you!"
     ]
   },
   "lineColors": {
-    "idle": "#d03a2f",
-    "run": "#d03a2f",
-    "jump": "#d03a2f",
-    "agent": "#d03a2f",
+    "idle": "#e65f43",
+    "run": "#e65f43",
+    "jump": "#e65f43",
+    "agent": "#e65f43",
     "bash": "#e0628a",
     "edit": "#d9822b",
     "error": "#c8402e",
@@ -355,11 +291,11 @@
     "cheer": "#9b7fe0"
   },
   "hud": {
-    "frame": "#d03a2f",
+    "frame": "#e65f43",
     "hp": {
       "fill": [
-        "#a8781f",
-        "#e8c35a"
+        "#b78038",
+        "#f7d67a"
       ]
     }
   },
@@ -371,19 +307,32 @@
     "sky": [
       "KKKKKKKKKKKK",
       "KKKKhhhhKKKK",
-      "KKKhbbbbhKKK",
+      "KKKhrrrrhKKK",
       "KKhhhhhhhhKK",
-      "KKKxxxxxxKKK",
-      "KxKxKxxKxKxK",
-      "KKxKxxxxKxKK",
+      "KKKttttttKKK",
+      "KtKtKttKtKtK",
+      "KKtKttttKtKK",
       "KKKKKKKKKKKK"
     ],
     "obstacles": [
       [
-        "DddD",
-        "dddd",
-        "DddD",
-        "dddd"
+        "NBBN",
+        "BBBB",
+        "NBBN",
+        "BBBB"
+      ]
+    ],
+    "decor": [
+      [
+        "..cc..",
+        ".cccc.",
+        "cccccc",
+        "......",
+        "......",
+        "......",
+        "......",
+        "......",
+        "......"
       ]
     ]
   }
