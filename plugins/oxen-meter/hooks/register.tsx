@@ -1,12 +1,14 @@
 import type { EngineInterface, Register, TurnStepResult } from 'claude-code'
 
-import { summarize } from './analyze'
+import { roleOf, summarize, ttlOf } from './analyze'
+import type { Role } from './analyze'
 import { codexCallOf, outcomeOf } from './codex'
 import { dataPathError, dataRootOf, dataTargetError, sessionPath } from './dataPath'
 import { projectLabel } from './project'
-import { addEvent, addStep, agentCallOf, newCollector, stepRecordOf, threadOf } from './record'
+import { MAIN, addEvent, addStep, agentCallOf, newCollector, stepRecordOf, threadOf } from './record'
 import type { Collector } from './record'
-import { COLORS, filesText, paneRows, reportText, rowsText } from './report'
+import { COLORS, filesText, fmtDur, fmtTokens, paneRows, reportText, rowsText, threadLabel } from './report'
+import { RESUME_OPTIONS, coldStartText, freshReason, resolveRecipient, resumeQuestion, resumeRisk, resumeToast } from './resume'
 import type { LiveAgent } from './report'
 import { TOMBSTONE, isExpired, readSessionText, restoreCollector, sessionText } from './sessionFile'
 import type { SessionData } from './analyze'
@@ -38,6 +40,8 @@ type Meter = {
   writing: boolean
   turnEnded: boolean // a main turn ended since the last write
   paneOpen: boolean
+  ttl: Record<Role, number> // each role's TTL in minutes, as the last tick worked it out, for the hot path
+  warned: Record<string, number> // the thread's last step the user was last warned about, so one idle spell warns once
 }
 
 /** Now, or undefined when the clock call fails: a hook that cannot read the time records nothing and goes on. */
@@ -53,6 +57,15 @@ async function nowOr($: EngineInterface) {
 async function liveAgents($: EngineInterface): Promise<LiveAgent[]> {
   try {
     return (await $.agent.list()).map(a => ({ id: a.id, status: a.status }))
+  } catch {
+    return []
+  }
+}
+
+/** The session's agents with the names SendMessage addresses them by, or none when the list call fails. */
+async function namedAgents($: EngineInterface): Promise<{ id: string; name?: string }[]> {
+  try {
+    return (await $.agent.list()).map(a => ({ id: a.id, ...(a.name !== undefined ? { name: a.name } : {}) }))
   } catch {
     return []
   }
@@ -152,13 +165,23 @@ async function flush($: EngineInterface, m: Meter, s: Settings) {
 
 /** Goes on from the session's file when it has one: after a reload, or in a resumed session. */
 async function restore($: EngineInterface, m: Meter) {
-  if (m.root === undefined || m.sid === undefined || m.c.records.length > 0) {
+  if (m.root === undefined || m.sid === undefined) {
     return
   }
   try {
     const file = readSessionText(await $.fs.read(sessionPath(m.root, m.sid)))
     if (file) {
-      m.c = restoreCollector(file)
+      // What arrived before the file was read (a classic SessionStart) goes on after it.
+      const restored = restoreCollector(file)
+      for (const r of m.c.records) {
+        if (r.k === 'step') {
+          addStep(restored, r)
+        } else {
+          addEvent(restored, r)
+        }
+      }
+      restored.dirty = m.c.records.length > 0
+      m.c = restored
       m.startedAt = file.startedAt
     }
   } catch {
@@ -231,7 +254,11 @@ async function report($: EngineInterface, m: Meter, s: Settings, arg: string | u
 
 export const register: Register = (on, options) => {
   const settings = readSettings(options)
-  const m: Meter = { c: newCollector(), root: undefined, startedAt: 0, project: '', version: 'unknown', triedAt: 0, writing: false, turnEnded: false, paneOpen: false }
+  const m: Meter = { c: newCollector(), root: undefined, startedAt: 0, project: '', version: 'unknown', triedAt: 0, writing: false, turnEnded: false, paneOpen: false, ttl: { main: 60, subagent: 5 }, warned: {} }
+  const refreshTtl = () => {
+    const ttl = ttlOf(m.c.records, settings)
+    m.ttl = { main: ttl.main.min, subagent: ttl.subagent.min }
+  }
 
   on('session.start', async ($, e, next) => {
     m.root = dataRootOf($.plugin.root, settings.dataDir)
@@ -244,6 +271,7 @@ export const register: Register = (on, options) => {
       m.startedAt = (await nowOr($)) ?? 0
     }
     await restore($, m)
+    refreshTtl()
     await sweep($, m, settings)
     try {
       await $.command.register({ name: COMMAND, description: 'oxen-meter: open or close the prompt cache pane; /meter report [days] adds up past sessions', argumentHint: '[report [days]]', immediate: true })
@@ -254,6 +282,7 @@ export const register: Register = (on, options) => {
       if (m.paneOpen) {
         $.ui.invalidate('ui.render')
       }
+      refreshTtl()
       const now = (await nowOr($)) ?? 0
       if (m.c.dirty && (m.turnEnded || now - m.triedAt >= FLUSH_MS)) {
         await flush($, m, settings)
@@ -264,9 +293,25 @@ export const register: Register = (on, options) => {
   })
 
   // Every model request of every loop: passed on untouched, then recorded from its usage. Never rewritten or answered.
+  // A thread waking past its TTL with a large context gets one toast for that idle spell: it cannot be stopped here.
   on('turn.step', async function* ($, e, next) {
     let mark = performance.now()
     const t0 = await nowOr($)
+    const thread = threadOf(e.agentId)
+    let coldStart = false
+    try {
+      const state = m.c.threads[thread]
+      const risk = t0 === undefined ? undefined : resumeRisk(state, t0, m.ttl[roleOf(thread)], settings.coldTokens, 1)
+      if (risk && state) {
+        coldStart = true
+        if (settings.resumeGuard !== 'off' && m.warned[thread] !== state.lastT0) {
+          m.warned[thread] = state.lastT0
+          $.ui.toast(coldStartText(risk, threadLabel(thread, m.c)))
+        }
+      }
+    } catch {
+      // The step goes on unwarned.
+    }
     let own = performance.now() - mark
     let result: TurnStepResult | undefined
     try {
@@ -277,7 +322,8 @@ export const register: Register = (on, options) => {
       const t1 = await nowOr($)
       try {
         if (t0 !== undefined && t1 !== undefined) {
-          addStep(m.c, stepRecordOf(e, result, t0, t1, m.c))
+          const r = stepRecordOf(e, result, t0, t1, m.c)
+          addStep(m.c, coldStart ? { ...r, coldStart: true } : r)
         }
       } catch {
         // A step the meter cannot record goes on as the engine sent it.
@@ -360,6 +406,69 @@ export const register: Register = (on, options) => {
     const t = await nowOr($)
     if (t !== undefined && typeof e.agent_id === 'string') {
       addEvent(m.c, { k: 'agent-stop', t, thread: e.agent_id, agentType: String(e.agent_type ?? '') })
+    }
+    return next(e)
+  })
+
+  // A message from Claude that resumes an agent whose cache likely went cold: a toast (warn), a question (ask), or a
+  // record alone (off). Only the user's "Spawn a fresh agent" keeps the message back; no answer sends it.
+  on('session.send', async ($, e, next) => {
+    if (e.origin.kind !== 'model') {
+      return next(e)
+    }
+    const t = await nowOr($)
+    const agent = t === undefined ? undefined : resolveRecipient(e.to, m.c, await namedAgents($))
+    if (t === undefined || agent === undefined) {
+      return next(e)
+    }
+    const state = m.c.threads[agent]
+    const risk = resumeRisk(state, t, m.ttl[roleOf(agent)], settings.coldTokens)
+    const sent = { k: 'send' as const, t, thread: threadOf(e.agentId), to: agent, risk: risk !== undefined, ...(state ? { gapMs: t - state.lastT0, ctx: state.lastCtx } : {}), mode: settings.resumeGuard }
+    if (!risk || !state || settings.resumeGuard === 'off') {
+      addEvent(m.c, sent)
+      return next(e)
+    }
+    const label = threadLabel(agent, m.c)
+    m.warned[agent] = state.lastT0
+    if (settings.resumeGuard === 'warn') {
+      $.ui.toast(resumeToast(risk, label))
+      addEvent(m.c, sent)
+      return next(e)
+    }
+    const answer = await $.ui.ask(resumeQuestion(risk, label), { header: 'Cold resume', options: [RESUME_OPTIONS.fresh, RESUME_OPTIONS.resume] }).catch(() => undefined)
+    const chose = answer === RESUME_OPTIONS.fresh ? 'fresh' : answer === RESUME_OPTIONS.resume ? 'resume' : 'unanswered'
+    addEvent(m.c, { ...sent, answer: chose })
+    if (chose === 'fresh') {
+      return { isDelivered: false as const, reason: freshReason(risk, label) }
+    }
+
+    return next(e)
+  })
+
+  // A resumed session: how long it sat and whether its cache likely expired, as Claude Code worked it out.
+  on('classic.SessionStart', async ($, e, next) => {
+    try {
+      const idleS = e.seconds_since_last_response
+      const t = await nowOr($)
+      if ((e.source === 'resume' || e.source === 'fork') && typeof idleS === 'number' && t !== undefined) {
+        const ctx = e.context_tokens ?? 0
+        const expired = e.prompt_cache_likely_expired === true
+        addEvent(m.c, { k: 'main-resume', t, thread: MAIN, idleS, ctx, expired })
+        if (expired && ctx >= settings.coldTokens && settings.resumeGuard !== 'off') {
+          $.ui.toast(`oxen-meter: this session sat ${fmtDur(idleS * 1000)} and its cache likely expired: the first request writes its ${fmtTokens(ctx)} context again.`)
+        }
+      }
+    } catch {
+      // The session starts as Claude Code starts it.
+    }
+    return next(e)
+  })
+
+  // A model switch reports the main thread's TTL: a measured one.
+  on('classic.PostModelSwitch', async ($, e, next) => {
+    const t = await nowOr($)
+    if (t !== undefined && (e.cache_ttl === '5m' || e.cache_ttl === '1h')) {
+      addEvent(m.c, { k: 'ttl', t, thread: MAIN, ttl: e.cache_ttl, source: 'model-switch' })
     }
     return next(e)
   })

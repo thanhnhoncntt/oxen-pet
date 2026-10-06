@@ -163,3 +163,16 @@ test('the summary adds the sessions\' exact totals by role, model and agent type
   expect(s.cold.map(c => c.thread)).toEqual(['a1'])
   expect(s.ttl.subagent.min).toBe(5)
 })
+
+test('a message that resumes an agent is a handoff too: back when the agent stops, and the reaction before it counts', () => {
+  const records: MeterRecord[] = [
+    { k: 'agent-call', t0: 0, t1: 3 * MIN, thread: MAIN, agent: 'a1', status: 'completed' },
+    { k: 'send', t: 10 * MIN, thread: MAIN, to: 'a1', risk: true, gapMs: 9 * MIN, ctx: 80 * K, mode: 'ask', answer: 'resume' },
+    { k: 'agent-stop', t: 14 * MIN, thread: 'a1', agentType: 'Explore' },
+    { k: 'send', t: 20 * MIN, thread: MAIN, to: 'a1', risk: false, gapMs: 1 * MIN, ctx: 80 * K, mode: 'ask', answer: 'fresh' },
+  ]
+  expect(handoffsOf(records)).toEqual([
+    { kind: 'agent', thread: MAIN, t0: 0, bg: false, workMs: 3 * MIN, reactMs: 7 * MIN },
+    { kind: 'resume', thread: MAIN, t0: 10 * MIN, bg: true, workMs: 4 * MIN },
+  ])
+})

@@ -95,6 +95,9 @@ function stubEngine(on: On, placed = true) {
   on('classic.SubagentStart', () => ({}) as never)
   on('classic.SubagentStop', () => ({}) as never)
   on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
+  on('session.send', () => ({ isDelivered: true }) as never)
+  on('classic.SessionStart', () => ({}) as never)
+  on('classic.PostModelSwitch', () => ({}) as never)
   return { open, agents, toasts, clock, store, session }
 }
 
@@ -333,4 +336,114 @@ test('session files past the retention days are emptied when a session starts', 
   await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
   expect(fs.files.get('/home/me/meter/sessions/old-session-0001.json')!.text).toBe('{"v":1,"expired":true}')
   expect(fs.files.get('/home/me/meter/sessions/new-session-0001.json')!.text).toContain('new-session-0001')
+})
+
+/** Answers the guard's question with `answer`; undefined dismisses it. Returns the questions asked. */
+function stubAsk(on: On, answer: string | undefined) {
+  const asked: string[] = []
+  on('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => {
+    const question = (e as unknown as { questions: { question: string }[] }).questions[0]!.question
+    asked.push(question)
+    if (answer === undefined) {
+      return { deny: 'dismissed' }
+    }
+    return { result: { questions: (e as unknown as { questions: unknown[] }).questions, answers: { [question]: answer } } } as never
+  })
+  return asked
+}
+
+const AGENT = 'agent-7f3a'
+const SEND = { to: AGENT, text: 'fix the bug in secret.ts', origin: { kind: 'model' } }
+
+/** A session where the Explore subagent AGENT took one step, `idleMin` minutes ago. */
+async function idleAgent($: Engine, on: On, idleMin: number) {
+  const engine = stubEngine(on)
+  stubModel(on, [])
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await $.classic.SubagentStart({ agent_id: AGENT, agent_type: 'Explore' })
+  await runStep($, { ...STEP, agentId: AGENT })
+  await engine.clock.advance(idleMin * 60000)
+  return engine
+}
+
+test('by default, resuming an agent whose cache went cold shows a toast and goes on', async ($, on) => {
+  const asked = stubAsk(on, 'Spawn a fresh agent')
+  const { toasts } = await idleAgent($, on, 6)
+  const sent = await $.session.send(SEND as never)
+  expect(sent.isDelivered).toBe(true)
+  expect(asked).toEqual([])
+  expect(toasts).toEqual(['oxen-meter: resuming Explore 7f3a after 6m writes its 93K context again (~107K eq).'])
+
+  await runStep($, { ...STEP, agentId: AGENT, index: 1 })
+  expect(toasts.length).toBe(1)
+})
+
+test('in ask mode, "Spawn a fresh agent" keeps the message from the cold agent and tells Claude what to do', { options: { resumeGuard: 'ask' } }, async ($, on) => {
+  const asked = stubAsk(on, 'Spawn a fresh agent')
+  await idleAgent($, on, 6)
+  const sent = await $.session.send(SEND as never)
+  expect(sent.isDelivered).toBe(false)
+  expect(String(sent.reason)).toContain('The user chose not to resume Explore 7f3a')
+  expect(asked).toEqual(['oxen-meter: Explore 7f3a has sat 6m, past its 5m cache. Resuming it writes its 93K context again: about 107K token equivalents. Spawn a fresh agent with a short handoff instead?'])
+})
+
+test('in ask mode, "Resume anyway" sends the message', { options: { resumeGuard: 'ask' } }, async ($, on) => {
+  stubAsk(on, 'Resume anyway')
+  await idleAgent($, on, 6)
+  expect((await $.session.send(SEND as never)).isDelivered).toBe(true)
+})
+
+test('in ask mode with no one to answer, the message goes and the meter notes it', { options: { resumeGuard: 'ask', dataDir: '/home/me/meter' } }, async ($, on) => {
+  stubAsk(on, undefined)
+  const fs = stubFs(on)
+  await idleAgent($, on, 6)
+  expect((await $.session.send(SEND as never)).isDelivered).toBe(true)
+  await $.session.end({ reason: 'other', sessionId: SID, resume: { id: SID } } as never)
+  const text = fs.files.get(`/home/me/meter/sessions/${SID}.json`)!.text
+  expect(JSON.parse(text).records.find((r: { k: string }) => r.k === 'send')).toMatchObject({ to: AGENT, risk: true, mode: 'ask', answer: 'unanswered' })
+  expect(text).not.toContain('secret')
+})
+
+test('a warm agent, a message from a plugin, or the guard turned off asks nothing and warns of nothing', { options: { resumeGuard: 'ask' } }, async ($, on) => {
+  const asked = stubAsk(on, 'Spawn a fresh agent')
+  const { toasts, clock } = await idleAgent($, on, 1)
+  expect((await $.session.send(SEND as never)).isDelivered).toBe(true)
+  await clock.advance(10 * 60000)
+  expect((await $.session.send({ ...SEND, origin: { kind: 'plugin', name: 'other' } } as never)).isDelivered).toBe(true)
+  expect((await $.session.send({ ...SEND, to: 'someone-else' } as never)).isDelivered).toBe(true)
+  expect([asked, toasts]).toEqual([[], []])
+})
+
+test('with the guard off, a cold resume is only recorded', { options: { resumeGuard: 'off' } }, async ($, on) => {
+  const asked = stubAsk(on, 'Spawn a fresh agent')
+  const { toasts } = await idleAgent($, on, 6)
+  expect((await $.session.send(SEND as never)).isDelivered).toBe(true)
+  await runStep($, { ...STEP, agentId: AGENT, index: 1 })
+  expect([asked, toasts]).toEqual([[], []])
+})
+
+test('a thread that wakes on its own after its cache went cold gets a toast, once', async ($, on) => {
+  const { toasts } = await idleAgent($, on, 6)
+  await runStep($, { ...STEP, agentId: AGENT, index: 1 })
+  await runStep($, { ...STEP, agentId: AGENT, index: 2 })
+  expect(toasts).toEqual(['oxen-meter: Explore 7f3a woke after 6m with a cold cache: writing 93K context again (~107K eq).'])
+})
+
+test('a session resumed after its cache expired is a cold resume of main in the report', DATA, async ($, on) => {
+  stubEngine(on)
+  stubFs(on)
+  stubModel(on, [])
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await $.classic.SessionStart({ source: 'resume', seconds_since_last_response: 7200, context_tokens: 180000, prompt_cache_likely_expired: true } as never)
+  const out = await $.command.run({ command: 'meter', args: 'report', ...RUN } as never)
+  expect(String(out.text)).toContain('main (resumed)  idle 2h00m  wrote 180K')
+})
+
+test('a model switch reports the main thread\'s TTL, which the pane takes as measured', async ($, on) => {
+  stubEngine(on)
+  stubModel(on, [])
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await runStep($, STEP)
+  await $.classic.PostModelSwitch({ from_model: 'a', to_model: 'b', requested_model: null, source: 'command', context_tokens: 1, prompt_cache_warm: true, cache_ttl: '5m', estimated_cache_write_usd: 0, pricing: 'catalog' } as never)
+  expect(await paneText($)).toContain('main 5m (measured: 1)')
 })

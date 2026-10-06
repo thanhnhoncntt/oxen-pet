@@ -322,6 +322,7 @@ plugins/oxen-meter/               the prompt cache meter: a mod with no band
   hooks/analyze.ts                hit rate, token equivalent, TTLs, cold resumes, handoffs, anti-patterns
   hooks/sessionFile.ts            a session's file: written whole, kept under 3 MiB, emptied when expired
   hooks/dataPath.ts               where the meter may write
+  hooks/resume.ts                 the cold resume guard: who a message resumes, the risk, what the user is asked
   hooks/project.ts                the project's name, hashed
   hooks/report.ts                 the /meter pane's rows and /meter report
   hooks/codex.ts                  which Bash calls are Codex handoffs or outcomes

@@ -103,11 +103,11 @@ From `claude plugin validate plugins/oxen-meter --strict`:
 
 ```
 hooks: session.start, turn.step, tool.call{tool=Bash}, tool.call{tool=Agent}, classic.SubagentStart,
-       classic.SubagentStop, session.compact, turn.complete, session.end, command.run{command=meter},
-       ui.render{component=Pane}
+       classic.SubagentStop, session.send, classic.SessionStart, classic.PostModelSwitch, session.compact,
+       turn.complete, session.end, command.run{command=meter}, ui.render{component=Pane}
 calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, $.fs.read, $.fs.stat, $.fs.write,
-       $.session.id, $.session.root, $.session.usage, $.store.get, $.store.set, $.ui.close, $.ui.invalidate,
-       $.ui.open, $.ui.panes, $.ui.resolve
+       $.session.id, $.session.root, $.session.usage, $.store.get, $.store.set, $.ui.ask, $.ui.close,
+       $.ui.invalidate, $.ui.open, $.ui.panes, $.ui.resolve, $.ui.toast
 ```
 
 | Call | Used for |
@@ -116,6 +116,9 @@ calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, 
 | `tool.call` on Bash | Reads the command's text to label it a Codex handoff or an outcome (`git commit`, `gh pr create`); keeps the label, never the command |
 | `tool.call` on Agent | Reads the result's agent id, type, model, token total and the 5m/1h split of its cache writes; never the prompt or the report |
 | `session.compact` | Passes the compaction on untouched; records its trigger and sizes |
+| `session.send` | The cold resume guard (below). Reads whom a message from Claude goes to, never its text |
+| `classic.SessionStart`, `classic.PostModelSwitch` | Numbers Claude Code reports: how long a resumed session sat and whether its cache likely expired; the main thread's TTL |
+| `$.ui.ask`, `$.ui.toast` | The guard's question and its warnings |
 | `$.fs.write` | Only `<data folder>/sessions/<session id>.json` and `<data folder>/exports/oxen-meter-export-<date>[-<label>].json`, through `hooks/dataPath.ts` (below) |
 | `$.fs.read` | The meter's own `plugin.json` (its version), and its session files in `<data folder>/sessions` |
 | `$.fs.list` | `<data folder>/sessions`, for `/meter report` and for emptying expired files |
@@ -134,7 +137,12 @@ not a folder. The data folder's own ancestors may be links (a `.claude` folder k
 There is no delete: `$.fs` has none. A session file past **Keep sessions (days)** is written over with
 `{"v":1,"expired":true}` and stays as those few bytes.
 
-No hook refuses anything: every hook passes its event on, and a hook that throws is skipped (fail-open). The checks above apply to it with `plugins/oxen-meter` in place of `plugins/oxen-pet`; each prints nothing.
+One hook can hold anything back: `session.send`, the cold resume guard. With **Cold resume guard** set to `ask`, and
+only for a message Claude sends (not a plugin's) to an agent whose cache likely went cold with at least **Cold resume
+tokens** of context, it asks the user; on **Spawn a fresh agent** alone it answers `isDelivered: false`, and Claude
+reads why as the SendMessage result. **Resume anyway**, no answer (`claude -p`), and an error in the guard all send
+the message. `warn` (the default) and `off` never hold one back. Every other hook passes its event on, and a hook that
+throws is skipped (fail-open). The checks above apply to it with `plugins/oxen-meter` in place of `plugins/oxen-pet`; each prints nothing.
 
 ## Taking an upstream change
 

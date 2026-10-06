@@ -137,29 +137,36 @@ export function coldResumes(records: readonly MeterRecord[], ttlMin: Record<Role
   return found
 }
 
-/** A handoff: work a thread gave to a subagent or to Codex, how long it took to come back, and how long the thread took to hand off again. */
-export type Handoff = { kind: 'agent' | 'codex'; thread: string; t0: number; bg: boolean; workMs?: number; reactMs?: number }
+/**
+ * A handoff: work a thread gave to a subagent, to Codex, or back to an agent by a message that resumed it; how long it
+ * took to come back, and how long the thread took to hand off again.
+ */
+export type Handoff = { kind: 'agent' | 'codex' | 'resume'; thread: string; t0: number; bg: boolean; workMs?: number; reactMs?: number }
 
 /**
- * The handoffs, in order. A call that waits returns when it ends; a background agent when its SubagentStop comes; a
- * background Codex run has no return the meter sees. The reaction runs from the return to the thread's next handoff.
+ * The handoffs, in order. A call that waits returns when it ends; a background agent, or one a message resumed, when
+ * its next SubagentStop comes; a background Codex run has no return the meter sees. A message the user refused to
+ * send is none. The reaction runs from the return to the thread's next handoff.
  */
 export function handoffsOf(records: readonly MeterRecord[]): Handoff[] {
-  const stops = new Map<string, number>()
+  const stops = new Map<string, number[]>()
   for (const r of records) {
-    if (r.k === 'agent-stop' && !stops.has(r.thread)) {
-      stops.set(r.thread, r.t)
+    if (r.k === 'agent-stop') {
+      stops.set(r.thread, [...(stops.get(r.thread) ?? []), r.t])
     }
   }
+  const stopAfter = (agent: string | undefined, t: number) => (agent === undefined ? undefined : stops.get(agent)?.find(s => s >= t))
   type Call = { kind: Handoff['kind']; thread: string; t0: number; bg: boolean; back: number | undefined }
   const calls = records
     .flatMap((r): Call[] => {
       if (r.k === 'agent-call') {
-        const back = r.bg ? (r.agent !== undefined ? stops.get(r.agent) : undefined) : r.t1
-        return [{ kind: 'agent', thread: r.thread, t0: r.t0, bg: r.bg === true, back }]
+        return [{ kind: 'agent', thread: r.thread, t0: r.t0, bg: r.bg === true, back: r.bg ? stopAfter(r.agent, r.t0) : r.t1 }]
       }
       if (r.k === 'codex') {
         return [{ kind: 'codex', thread: r.thread, t0: r.t0, bg: r.bg === true, back: r.bg ? undefined : r.t1 }]
+      }
+      if (r.k === 'send' && r.answer !== 'fresh') {
+        return [{ kind: 'resume', thread: r.thread, t0: r.t, bg: true, back: stopAfter(r.to, r.t) }]
       }
       return []
     })
@@ -254,11 +261,17 @@ function addTo(into: Weighed, g: Group, eq: number) {
   into.eq += eq
 }
 
+/** The TTL of each role over `records`, as `inferTtl` gives it. */
+export function ttlOf(records: readonly MeterRecord[], o: Pick<SummaryOptions, 'mainTtl' | 'subagentTtl'>): Record<Role, TtlView> {
+  const samples = cacheSamples(records)
+
+  return { main: inferTtl(samples, records, 'main', o.mainTtl), subagent: inferTtl(samples, records, 'subagent', o.subagentTtl) }
+}
+
 /** What a set of sessions adds up to: exact totals from their groups, the rest from their records. */
 export function summarize(sessions: readonly SessionData[], o: SummaryOptions): Summary {
   const records = sessions.flatMap(s => s.records)
-  const samples = cacheSamples(records)
-  const ttl = { main: inferTtl(samples, records, 'main', o.mainTtl), subagent: inferTtl(samples, records, 'subagent', o.subagentTtl) }
+  const ttl = ttlOf(records, o)
   const ttlMin = { main: ttl.main.min, subagent: ttl.subagent.min }
   const totals = { steps: 0, in: 0, out: 0, cr: 0, cw: 0 }
   const byRole = { main: zero(), subagent: zero() }

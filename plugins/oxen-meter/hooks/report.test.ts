@@ -131,3 +131,8 @@ test('the files row says where the session goes, or why it does not', () => {
   expect(filesText({ root: '/x', savedAt: 0 }, 3 * MIN)).toBe('saved 3m ago to /x/sessions')
   expect(filesText({ root: '/x', savedAt: 0, error: 'the data folder is a symbolic link.' }, 3 * MIN)).toBe('not saved: the data folder is a symbolic link.')
 })
+
+test('resumes count among the handoffs', () => {
+  const s = { ...SUMMARY, handoffs: [{ kind: 'resume' as const, thread: MAIN, t0: 0, bg: true, workMs: 4 * MIN }, { kind: 'resume' as const, thread: MAIN, t0: 1, bg: true }] }
+  expect(reportText(s, { days: 7, skipped: 0 })).toContain('Handoffs   2 resumes (2 background), median 4m back')
+})

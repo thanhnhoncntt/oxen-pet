@@ -44,11 +44,12 @@ export type EventRecord =
   | { k: 'compact'; t0: number; t1: number; thread: string; trigger: string; before?: number; after?: number; usage?: Usage; stepsSeen: number }
   | { k: 'main-resume'; t: number; thread: string; idleS: number; ctx: number; expired: boolean }
   | { k: 'ttl'; t: number; thread: string; ttl: '5m' | '1h'; source: 'model-switch' | 'agent-call' }
+  | { k: 'send'; t: number; thread: string; to: string; risk: boolean; gapMs?: number; ctx?: number; mode: 'off' | 'warn' | 'ask'; answer?: 'resume' | 'fresh' | 'unanswered' }
 
 export type MeterRecord = StepRecord | EventRecord
 
 /** Every kind of record this version writes; a file's record of another kind is left out when it is read. */
-export const RECORD_KINDS: ReadonlySet<string> = new Set(['step', 'agent-start', 'agent-stop', 'agent-call', 'codex', 'outcome', 'compact', 'main-resume', 'ttl'])
+export const RECORD_KINDS: ReadonlySet<string> = new Set(['step', 'agent-start', 'agent-stop', 'agent-call', 'codex', 'outcome', 'compact', 'main-resume', 'ttl', 'send'])
 
 /** Where a thread stands after its last step. */
 export type ThreadState = { lastT0: number; lastT1: number; lastCtx: number; lastModel: string; lastMsgs: number; steps: number; agentType?: string }

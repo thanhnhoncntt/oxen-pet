@@ -41,7 +41,10 @@ export const shortModel = (model: string) => model.replace(/^claude-/, '').repla
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0)
 
 /** A subagent's label: its type, or `agent`, and the last four letters or digits of its id. */
-const agentLabel = (id: string, type: string | undefined) => `${type ?? 'agent'} ${id.replace(/[^A-Za-z0-9]/g, '').slice(-4)}`
+export const agentLabel = (id: string, type: string | undefined) => `${type ?? 'agent'} ${id.replace(/[^A-Za-z0-9]/g, '').slice(-4)}`
+
+/** A thread's label: `main`, or its agent's. */
+export const threadLabel = (thread: string, c: Collector) => (thread === MAIN ? 'main' : agentLabel(thread, c.agentTypes[thread]))
 
 /** A thread's row: its model and context, how long since its cache was read, and how long the cache has left. */
 function threadRow(label: string, c: Collector, id: string, now: number, ttlMin: number): Row {
@@ -188,18 +191,18 @@ function coldLine(r: ColdResume) {
 }
 
 function handoffText(all: readonly Handoff[]) {
-  const part = (kind: Handoff['kind'], name: string) => {
+  const part = (kind: Handoff['kind'], one: string, many: string) => {
     const own = all.filter(h => h.kind === kind)
     if (own.length === 0) {
       return ''
     }
     const bg = own.filter(h => h.bg).length
     const back = median(own.flatMap(h => (h.workMs !== undefined ? [h.workMs] : [])))
-    return `${own.length} ${name}${bg > 0 ? ` (${bg} background)` : ''}${back !== undefined ? `, median ${fmtDur(back)} back` : ''}`
+    return `${own.length} ${own.length === 1 ? one : many}${bg > 0 ? ` (${bg} background)` : ''}${back !== undefined ? `, median ${fmtDur(back)} back` : ''}`
   }
   const react = median(all.flatMap(h => (h.reactMs !== undefined ? [h.reactMs] : [])))
 
-  return [part('agent', 'Agent'), part('codex', 'Codex'), react !== undefined ? `next handoff median ${fmtDur(react)}` : ''].filter(Boolean).join(' · ')
+  return [part('agent', 'Agent', 'Agent'), part('codex', 'Codex', 'Codex'), part('resume', 'resume', 'resumes'), react !== undefined ? `next handoff median ${fmtDur(react)}` : ''].filter(Boolean).join(' · ')
 }
 
 const FLAG_NAMES = { 'context-bloat': 'context bloat', 'big-first-prefix': 'big first prefix', 'expensive-short': 'short task on an expensive model' } as const
