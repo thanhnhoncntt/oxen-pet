@@ -63,7 +63,8 @@ const sessionData = f => ({ sid: f.sid, startedAt: f.startedAt, records: f.recor
 const sessions = n => `${n} session${n === 1 ? '' : 's'} updated`
 const busy = tool => `${tool}: another import is running; this reads what is already in.`
 
-function importLine(r) {
+/** The first line of `import`, `report` and `export`: what the import read. */
+export function importLine(r) {
   const c = r.codex
   const d = r.devin
   const codex = c === undefined ? busy('Codex') : `Codex: ${c.files} file${c.files === 1 ? '' : 's'} read (${(c.bytes / 1e6).toFixed(1)} MB), ${sessions(c.sessions.length)}.`

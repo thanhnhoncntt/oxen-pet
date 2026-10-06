@@ -78,6 +78,11 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
    It starts a headless Chrome and ffmpeg, talks to Chrome's DevTools on `127.0.0.1` only, and writes
    only `docs/images/demo.gif` and `hud.png` (or the path given) and a temp folder it deletes. The
    checks above cover `plugins/oxen-pet` alone on purpose.
+   `tools/demo/meter.mjs` (2026-10-06) records oxen-meter's guide the same way, from the meter's own modules: it
+   starts a headless Chrome and ffmpeg, talks to Chrome's DevTools on `127.0.0.1` only, and writes only
+   `docs/images/meter-demo.gif`, `meter-pane.png` and `meter-report.png` (or beside the path given) and a temp folder
+   it deletes, once Chrome has exited. It lives outside `plugins/` and `tools/meter`, so no install ships it, no hook
+   runs it, and neither the mod's checks nor the companion's cover it.
 5. 1.0.2 adds a `turn.complete` hook that only observes: it notes when the main thread's turn ended,
    for the cache timer, and passes the turn through unchanged.
 6. 1.1.0 adds the mod's first hook that can refuse a call: `tool.check` on Bash (the shield). It
