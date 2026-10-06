@@ -85,12 +85,13 @@ test('Windows separators compare as one', () => {
 test('the salt the mod and the CLI share is a file the mod may write; the CLI\'s import state and locks are the CLI\'s alone', () => {
   expect(saltPath(ROOT)).toBe(`${ROOT}/state/salt.json`)
   expect(statePath(ROOT, 'codex', 'json')).toBe(`${ROOT}/state/codex.json`)
+  expect(statePath(ROOT, 'devin', 'guard.json')).toBe(`${ROOT}/state/devin.guard.json`)
   expect(dataPathError(ROOT, saltPath(ROOT))).toBeUndefined()
-  for (const name of ['codex.json', 'devin.json', 'codex.lock', 'devin.lock']) {
+  for (const name of ['codex.json', 'devin.json', 'codex.lock', 'devin.lock', 'codex.guard.json', 'devin.guard.json']) {
     expect(dataPathError(ROOT, `${ROOT}/state/${name}`)).toBeDefined()
     expect(dataPathError(ROOT, `${ROOT}/state/${name}`, CLI_KINDS)).toBeUndefined()
   }
-  for (const name of ['other.json', 'codex.json.bak', '../salt.json', 'salt.lock']) {
+  for (const name of ['other.json', 'codex.json.bak', '../salt.json', 'salt.lock', 'codex.guard.lock']) {
     expect(dataPathError(ROOT, `${ROOT}/state/${name}`, CLI_KINDS)).toBeDefined()
   }
   expect(dataPathError(ROOT, `${ROOT}/sessions/codex-01a10f34-8859-7e71-b716-87d71c201fe1.json`, CLI_KINDS)).toBeUndefined()

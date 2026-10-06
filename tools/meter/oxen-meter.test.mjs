@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { run } from './oxen-meter.mjs'
+import { run } from './lib/cli.mjs'
 
 const MIN = 60000
 const ROOT_ID = '01a10f34-8859-7e71-b716-87d71c201fe1'
@@ -207,4 +207,107 @@ test('a Devin session is read again only when Devin wrote to it since', async ()
   assert.match((await run(['import'], h.flags)).text, /Devin: 1 session updated\./)
   const file = JSON.parse(readFileSync(join(h.data, 'sessions', 'devin-hallowed-cone.json'), 'utf8'))
   assert.equal(file.groups['main||claude-fable-5-1-medium'].steps, 4)
+})
+
+const prompt = h => JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: ROOT_ID, turn_id: 't9', transcript_path: h.rootFile, cwd: '/x', model: 'gpt-6.1-sol', permission_mode: 'default', prompt: 'CANARY_NEXT_PROMPT' })
+const settingsWith = (h, options) => {
+  writeFileSync(h.flags.claudeSettings, JSON.stringify({ pluginConfigs: { 'oxen-meter@oxen-pet': { options: { userLabel: 'Binh', coldTokens: 10000, ...options } } } }))
+  return h.flags
+}
+
+test('a prompt into a Codex thread that sat past Cold after warns the user, from the tail of its rollout', async () => {
+  const h = home()
+  const out = await run(['hook', 'codex'], { ...h.flags, input: prompt(h) })
+  assert.equal(out.code, 0)
+  assert.match(JSON.parse(out.text).systemMessage, /^oxen-meter: this thread sat 2h00m\. Its 91K context is likely out of the cache/)
+  assert.equal((await run(['hook', 'codex'], { ...home(Date.now() - 10 * MIN).flags, input: prompt(home(Date.now() - 10 * MIN)) })).text, '')
+  assert.equal((await run(['hook', 'codex'], { ...h.flags, input: JSON.stringify({ ...JSON.parse(prompt(h)), agent_id: 'a1' }) })).text, '')
+})
+
+test('in ask mode the prompt is held back once per idle spell, and goes when the user sends it again', async () => {
+  const h = home()
+  const flags = { ...settingsWith(h, { resumeGuard: 'ask' }), input: prompt(h) }
+  const first = JSON.parse((await run(['hook', 'codex'], flags)).text)
+  assert.equal(first.decision, 'block')
+  assert.match(first.reason, /Press ↑ and Enter to send it anyway/)
+  assert.equal((await run(['hook', 'codex'], flags)).text, '')
+  assert.equal((await run(['hook', 'codex'], { ...settingsWith(h, { resumeGuard: 'off' }), input: prompt(h) })).text, '')
+})
+
+test('a follow-up to a subagent that sat past Cold after warns the user; a message up to the main thread does not', async () => {
+  const h = home()
+  await run(['import'], h.flags)
+  const call = target => JSON.stringify({ hook_event_name: 'PreToolUse', session_id: ROOT_ID, turn_id: 't9', transcript_path: h.rootFile, tool_name: 'collaborationfollowup_task', tool_use_id: 'u1', tool_input: { target, message: 'CANARY' } })
+  assert.match(JSON.parse((await run(['hook', 'codex'], { ...h.flags, input: call('/root/review') })).text).systemMessage, /^oxen-meter: reviewer 4e5f sat 2h00m\. Resuming it likely sends its 30K context again/)
+  assert.match(JSON.parse((await run(['hook', 'codex'], { ...h.flags, input: call('review') })).text).systemMessage, /reviewer 4e5f sat/)
+  assert.equal((await run(['hook', 'codex'], { ...h.flags, input: call('/root') })).text, '')
+  const asked = (await run(['hook', 'codex'], { ...settingsWith(h, { resumeGuard: 'ask' }), input: call('/root/review') })).text
+  assert.ok(!('decision' in JSON.parse(asked)), 'a tool call is never held back')
+})
+
+test('Stop imports the thread that stopped, alone, and the hooks\' own times go with its session', async () => {
+  const h = home()
+  await run(['hook', 'codex'], { ...h.flags, input: prompt(h) })
+  const out = await run(['hook', 'codex'], { ...h.flags, input: JSON.stringify({ hook_event_name: 'Stop', session_id: ROOT_ID, turn_id: 't9', transcript_path: h.rootFile, stop_hook_active: false, last_assistant_message: 'CANARY' }) })
+  assert.equal(out.text, '')
+  const file = sessionOf(h)
+  assert.deepEqual(Object.keys(file.groups), ['main||gpt-6.1-sol'])
+  assert.equal(file.timings['codex UserPromptSubmit'].count, 1)
+  assert.doesNotMatch(everything(h), /CANARY/)
+})
+
+test('a hook given anything it cannot read prints nothing and exits 0', async () => {
+  const h = home()
+  for (const input of ['', 'not json', '{}', '{"hook_event_name":"UserPromptSubmit","transcript_path":"/nowhere.jsonl","session_id":"x"}']) {
+    assert.deepEqual(await run(['hook', 'codex'], { ...h.flags, input }), { code: 0, text: '' })
+  }
+  assert.deepEqual(await run(['hook', 'devin-later'], { ...h.flags, input: '{}' }), { code: 0, text: '' })
+})
+
+test('run as Codex runs it, the hook writes one JSON object to stdout and nothing to stderr', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const h = home()
+  const cli = new URL('./oxen-meter.mjs', import.meta.url).pathname
+  const r = spawnSync(process.execPath, [cli, 'hook', 'codex', '--data', h.data, '--claude-settings', h.flags.claudeSettings], { input: prompt(h), encoding: 'utf8' })
+  assert.equal(r.status, 0)
+  assert.equal(r.stderr, '')
+  assert.match(JSON.parse(r.stdout).systemMessage, /^oxen-meter: this thread sat/)
+})
+
+test('setup prints the hooks it would add; with --write it adds them beside the user\'s own, keeps a backup, and never twice', async () => {
+  const h = home()
+  const path = join(h.dir, '.codex', 'hooks.json')
+  const theirs = { hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'bash ~/.codex/herdr-agent-state.sh session' }] }] } }
+  writeFileSync(path, JSON.stringify(theirs))
+  const dry = await run(['setup', 'codex'], h.flags)
+  assert.match(dry.text, /would add these hooks/)
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), theirs)
+  assert.match((await run(['setup', 'codex'], { ...h.flags, write: true })).text, /no terminal to answer/)
+  const wrote = await run(['setup', 'codex'], { ...h.flags, write: true, yes: true })
+  assert.match(wrote.text, /Added oxen-meter's hooks .* run \/hooks to review them/s)
+  await run(['setup', 'codex'], { ...h.flags, write: true, yes: true })
+  const merged = JSON.parse(readFileSync(path, 'utf8'))
+  assert.deepEqual(merged.hooks.SessionStart, theirs.hooks.SessionStart)
+  assert.deepEqual(Object.keys(merged.hooks).sort(), ['PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'SubagentStop', 'UserPromptSubmit'])
+  for (const event of ['UserPromptSubmit', 'PreToolUse', 'Stop']) {
+    assert.equal(merged.hooks[event].length, 1, event)
+  }
+  assert.match(merged.hooks.Stop[0].hooks[0].command, /oxen-meter\.mjs" hook codex "--data"/)
+  assert.equal(merged.hooks.PreToolUse[0].matcher, '(followup_task|send_message)$')
+  assert.ok(existsSync(`${path}.oxen-meter.bak`))
+})
+
+test('setup never writes through a link, nor over a hooks file that is not JSON', async () => {
+  const h = home()
+  const path = join(h.dir, '.codex', 'hooks.json')
+  writeFileSync(path, '{ not json')
+  assert.match((await run(['setup', 'codex'], { ...h.flags, write: true, yes: true })).text, /is not JSON/)
+  assert.equal(readFileSync(path, 'utf8'), '{ not json')
+  const elsewhere = join(mkdtempSync(join(tmpdir(), 'oxen-meter-link-')), 'hooks.json')
+  writeFileSync(elsewhere, '{}')
+  const { unlinkSync } = await import('node:fs')
+  unlinkSync(path)
+  symlinkSync(elsewhere, path)
+  assert.match((await run(['setup', 'codex'], { ...h.flags, write: true, yes: true })).text, /symbolic link/)
+  assert.equal(readFileSync(elsewhere, 'utf8'), '{}')
 })

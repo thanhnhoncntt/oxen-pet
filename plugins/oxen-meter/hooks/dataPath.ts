@@ -2,7 +2,8 @@ import type { FsStat } from 'claude-code'
 
 /**
  * Where the meter may write: its data folder's `sessions/<session id>.json`, `exports/oxen-meter-export-….json`, and
- * `state/salt.json`, the salt the mod and the CLI share; the CLI (`tools/meter`) also its `state/codex|devin.json|lock`.
+ * `state/salt.json`, the salt the mod and the CLI share; the CLI (`tools/meter`) also its `state/codex|devin.json|lock`
+ * and its hooks' `state/codex|devin.guard.json`.
  * Nothing else. Every write goes through `dataPathError` (the spelling) and `dataTargetError` (where the path leads on
  * disk). The data folder's own ancestors may be links (a `.claude` folder kept in a dotfiles repo); from the data folder
  * down, nothing may be.
@@ -16,7 +17,7 @@ const KINDS: Record<DataKind, { folder: string; name: RegExp }> = {
   sessions: { folder: 'sessions', name: SESSION_NAME },
   exports: { folder: 'exports', name: EXPORT_NAME },
   salt: { folder: 'state', name: /^salt\.json$/ },
-  import: { folder: 'state', name: /^(codex|devin)\.(json|lock)$/ },
+  import: { folder: 'state', name: /^(codex|devin)\.(json|lock|guard\.json)$/ },
 }
 /** What the mod writes: its sessions, its exports, and the salt it shares with the CLI. */
 export const MOD_KINDS: readonly DataKind[] = ['sessions', 'exports', 'salt']
@@ -41,7 +42,7 @@ export function dataRootOf(pluginRoot: string, setting: string): string | undefi
 
 export const sessionPath = (root: string, sid: string) => `${root}/sessions/${sid}.json`
 export const saltPath = (root: string) => `${root}/state/salt.json`
-export const statePath = (root: string, tool: 'codex' | 'devin', ext: 'json' | 'lock') => `${root}/state/${tool}.${ext}`
+export const statePath = (root: string, tool: 'codex' | 'devin', ext: 'json' | 'lock' | 'guard.json') => `${root}/state/${tool}.${ext}`
 
 /** The export file of `day` (YYYYMMDD), with the user's label made safe for a file name. */
 export function exportPath(root: string, day: string, label: string) {

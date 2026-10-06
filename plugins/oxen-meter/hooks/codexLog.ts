@@ -80,6 +80,20 @@ function usageOf(u: Raw): { usage: Usage; context: number } {
   return { usage: { in: input - cached, cr: cached, cw: num(u.cache_write_input_tokens), out: num(u.output_tokens) }, context: input }
 }
 
+/** The agent path `target` names from the thread at `from`: a path as it is, else a name below `from`, `..` going up. */
+export function agentPathOf(from: string, target: string) {
+  const parts: string[] = []
+  for (const p of (target.startsWith('/') ? target : `${from}/${target}`).split('/')) {
+    if (p === '..') {
+      parts.pop()
+    } else if (p !== '' && p !== '.') {
+      parts.push(p)
+    }
+  }
+
+  return `/${parts.join('/')}`
+}
+
 const threadOf = (s: CodexState) => (s.own === undefined || s.own.thread === s.own.session ? MAIN : s.own.thread)
 const pathOf = (s: CodexState) => s.own?.path ?? ROOT_PATH
 
@@ -166,7 +180,8 @@ function callOps(s: CodexState, t: number, p: Record<string, unknown>, mode: Gua
     const model = str(args.model)
     return [{ op: 'event', record: { k: 'agent-call', t0: t, t1: t, thread, ...(task !== undefined ? { agent: `${pathOf(s)}/${task}` } : {}), ...(agentType !== undefined ? { agentType } : {}), ...(model !== undefined ? { model } : {}), status: 'started', bg: true } }]
   }
-  const target = str(args.target)
+  const raw = str(args.target)
+  const target = raw === undefined ? undefined : agentPathOf(pathOf(s), raw)
   // A message up to a parent, or to a sibling, resumes nothing this thread handed out.
   return target !== undefined && target.startsWith(`${pathOf(s)}/`) ? [{ op: 'event', record: { k: 'send', t, thread, to: target, risk: false, mode } }] : []
 }
@@ -288,6 +303,9 @@ export function codexLine(state: CodexState, line: string, o: { mode?: GuardMode
 
   return ops
 }
+
+/** The operations a file's end still holds: its last request, when no line has come after it yet (a hook reads a tail). */
+export const codexEnd = (state: CodexState): CodexOp[] => settle(state)
 
 /** Adds one file's operations to its session's collector, in place: steps, events, compactions, and agent paths. */
 export function applyCodexOps(c: Collector, ops: readonly CodexOp[]) {

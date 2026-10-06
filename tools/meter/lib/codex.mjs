@@ -4,7 +4,7 @@ import { statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { filesUnder, linesFrom, readJson, readText, withLock, writeGuarded } from './files.mjs'
-import { codexLog, dataPath, project, record, sessionFile, timing, versionOf } from './plugin.mjs'
+import { codexLog, dataPath, project, record, sessionFile, versionOf } from './plugin.mjs'
 
 const DAY_MS = 86400000
 const STATE_VERSION = 1
@@ -26,10 +26,8 @@ async function writeSession(o, session, ops, salt) {
   const c = existing ? sessionFile.restoreCollector(existing) : record.newCollector()
   codexLog.applyCodexOps(c, ops)
   codexLog.resolveCodex(c, { coldAfterMin: o.settings.coldAfterMin, coldTokens: o.settings.coldTokens })
-  // A hook's run, timed by the hook itself, goes with the session it ran for.
-  for (const [hook, ms] of o.timings ?? []) {
-    timing.noteTiming(c.timings, hook, ms)
-  }
+  // The hooks' runs for this session, each timed by the hook itself (lib/hook.mjs keeps them).
+  c.timings = structuredClone(o.guard?.timings?.[session] ?? {})
   const metas = ops.filter(op => op.op === 'meta')
   const cwd = (metas.find(m => m.thread === m.session) ?? metas[0])?.cwd
   const firstT = Math.min(...metas.map(m => m.t), ...c.records.map(r => ('t' in r ? r.t : r.t0)))
@@ -93,8 +91,9 @@ export async function importCodex(o) {
       }
     }
     const sessions = []
+    const guard = readJson(dataPath.statePath(o.root, 'codex', 'guard.json'))
     for (const [session, ops] of touched) {
-      sessions.push(await writeSession(o, session, ops, o.salt))
+      sessions.push(await writeSession({ ...o, guard }, session, ops, o.salt))
     }
     writeGuarded(o.root, statePath, JSON.stringify(state))
 

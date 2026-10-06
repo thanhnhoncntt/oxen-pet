@@ -30,27 +30,14 @@ const NODES = `
     json_extract(chat_message, '$.metadata.is_user_input') as user
   from message_nodes where session_id = ? order by row_id`
 
-/** Node's SQLite, its experimental-feature warning kept off the output (a hook's output is the user's to read). */
-async function sqlite() {
-  const listeners = process.listeners('warning')
-  process.removeAllListeners('warning')
-  process.on('warning', w => {
-    if (!(w.name === 'ExperimentalWarning' && /SQLite/.test(w.message))) {
-      for (const l of listeners) {
-        l(w)
-      }
-    }
-  })
-  return import('node:sqlite')
-}
-
 /** Devin's database, read-only; undefined when there is none. */
 export async function openDevin(devinHome) {
   const path = join(devinHome, 'sessions.db')
   if (!existsSync(path)) {
     return undefined
   }
-  const { DatabaseSync } = await sqlite()
+  // Loaded only when Devin is there; lib/quiet.mjs keeps its experimental-feature warning off the output.
+  const { DatabaseSync } = await import('node:sqlite')
   return new DatabaseSync(path, { readOnly: true })
 }
 

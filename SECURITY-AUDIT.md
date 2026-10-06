@@ -160,12 +160,13 @@ the CLI's input; the others print nothing.
 ### The oxen-meter CLI (`tools/meter/oxen-meter.mjs`)
 
 Codex CLI and Devin CLI cannot load a Claude Code mod, so the meter reads their logs with a Node script a person runs
-(`import`, `report`, `export`), or a Codex or Devin hook runs. It is not part of the mod: Claude Code never loads it,
+(`import`, `report`, `export`, `setup`), or a Codex hook runs (`hook codex`). It is not part of the mod: Claude Code never loads it,
 and it comes with this repo, or the clone Claude Code keeps of the marketplace (`~/.claude/plugins/marketplaces`). It
 runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files and guards.
 
-- **Network, processes:** none. `node:fs`, `node:path`, `node:os`, `node:module` and `node:url` are all it imports,
-  with its own `lib/` and, by `import()`, the mod's `plugins/oxen-meter/hooks/*.ts` and `node:sqlite` (for Devin).
+- **Network, processes:** none. `node:fs`, `node:path`, `node:os`, `node:module`, `node:url` and
+  `node:readline/promises` (setup's yes/no question) are all it imports, with its own `lib/` and, by `import()`, the
+  mod's `plugins/oxen-meter/hooks/*.ts` and `node:sqlite` (for Devin).
 - **Environment:** the home folder alone, through `os.homedir()`; every path under it can be named by a flag instead.
 - **Reads:** `~/.claude/settings.json` (the oxen-meter options under `pluginConfigs`); Codex's
   `~/.codex/sessions/**/rollout-*.jsonl`, from where its last read stopped. Of each line it reads the head (time and
@@ -179,9 +180,25 @@ runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files a
   runs on a Devin database.
 - **Writes:** through `tools/meter/lib/files.mjs`, which runs the mod's `dataPathError` with the CLI's kinds and
   `dataTargetError` on `lstat`/`realpath`: `sessions/codex-<session id>.json`, `exports/…`, `state/salt.json`, and its
-  own `state/codex.json` and `state/devin.json` (where each file's read stopped, which Devin sessions it read), and
+  own `state/codex.json` and `state/devin.json` (where each file's read stopped, which Devin sessions it read),
   `state/codex.lock`, `state/devin.lock` (created exclusively, removed when the import ends, taken over after a
-  minute). Nothing else, and nothing through a symbolic link.
+  minute), and `state/codex.guard.json` (the hooks' run times, and which idle spell a prompt was held back in).
+  Nothing else in the data folder, and nothing through a symbolic link.
+- **`setup codex --write`** writes `~/.codex/hooks.json`, after keeping the old one in `hooks.json.oxen-meter.bak`,
+  and only after a yes on the terminal (or `--yes`). `lib/setup.mjs`'s `hookConfigError` holds it to those two files
+  (and Devin's `~/.config/devin/config.json` with its backup): a plain file or none yet, in a folder that is there, not
+  a symbolic link, landing where it is spelled. It keeps every hook the user has, drops its own older entries, and
+  refuses a file that is not JSON. Without `--write` it only prints. Codex runs a new hook only after the user trusts it
+  in `/hooks`. The command it writes names this Node (`process.execPath`) and this CLI by absolute path.
+- **`hook codex`** reads the event's JSON on stdin. On a prompt (`UserPromptSubmit`) it reads the last 512 KB of the
+  main thread's rollout; on a follow-up to a subagent (`PreToolUse` on `followup_task` or `send_message`) the session
+  file; at a turn's, a subagent's or a session's end it imports that one rollout. It prints one JSON object or nothing:
+  a `systemMessage`, which Codex shows the user and never the model (checked: it is not in the rollout), or in `ask`
+  mode `decision: block` on the user's own prompt, once per idle spell, which the user sends anyway with ↑ and Enter.
+  It never prints `additionalContext`, `updatedInput` or a `permissionDecision`, so it adds nothing to the model's
+  context and holds no tool call back. It exits 0 whatever happens, with everything but Node's built-ins loaded inside
+  a `try` (`oxen-meter.mjs`), so a broken install prints nothing rather than a failed hook. Measured on Codex 0.160.1:
+  about 70 to 180 ms a run, Node's start included.
 - **The salt** in `state/salt.json` is shared with the mod, so a session keeps one hashed id in every export.
 
 ```bash
@@ -192,7 +209,8 @@ grep -rnE "fetch\(|XMLHttpRequest|WebSocket|https?://|child_process|spawn\(|exec
 
 # Its imports
 grep -rhoE "from '[^']+'|import\([^)]*\)" tools/meter/oxen-meter.mjs tools/meter/lib | sort -u
-# expected: node:fs, node:module, node:os, node:path, node:url, its own lib, and import() of the mod's hooks
+# expected: node:fs, node:module, node:os, node:path, node:readline/promises, node:url, its own lib, and import()
+# of lib/cli.mjs, node:sqlite and the mod's hooks
 ```
 
 ## Taking an upstream change

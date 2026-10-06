@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { applyCodexOps, codexLine, newCodexState, resolveCodex } from './codexLog'
+import { agentPathOf, applyCodexOps, codexLine, newCodexState, resolveCodex } from './codexLog'
 import type { CodexOp, CodexState } from './codexLog'
 import { MAIN, newCollector } from './record'
 
@@ -159,4 +159,14 @@ test('a line that is not JSON, or of a type the meter does not read, is passed o
   expect(codexLine(state, '{"timestamp":"2026-10-06T09:00:00.000Z","type":"tru')).toEqual([])
   expect(codexLine(state, 'garbage')).toEqual([])
   expect(codexLine(state, line(0, 'world_state', { full: true }))).toEqual([])
+})
+
+test('a target is a path, or a name relative to the calling thread\'s own path: a child\'s name, or ../ for a sibling', () => {
+  expect(agentPathOf('/root', '/root/review_auth')).toBe('/root/review_auth')
+  expect(agentPathOf('/root', 'review_auth')).toBe('/root/review_auth')
+  expect(agentPathOf('/root/a', '../b')).toBe('/root/b')
+  expect(agentPathOf('/root/a', './c/')).toBe('/root/a/c')
+  const state = newCodexState()
+  const ops = [...ROOT_LINES.slice(0, 4), line(60000, 'response_item', call('followup_task', { target: 'review_auth', message: 'CANARY' }))].flatMap(l => codexLine(state, l))
+  expect(events(ops).find(r => r.k === 'send')).toMatchObject({ to: '/root/review_auth' })
 })
