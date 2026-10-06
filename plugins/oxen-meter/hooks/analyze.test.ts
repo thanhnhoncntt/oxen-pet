@@ -176,3 +176,12 @@ test('a message that resumes an agent is a handoff too: back when the agent stop
     { kind: 'resume', thread: MAIN, t0: 10 * MIN, bg: true, workMs: 4 * MIN },
   ])
 })
+
+test('each session is judged on its own: the last step of one never pairs with the first step of the next', () => {
+  const a = steps([{ at: 0, cw: 100 * K }, { at: 1, cr: 100 * K, cw: 1 * K }])
+  const b = steps([{ at: 70, cw: 101 * K, msgs: 10 }, { at: 71, cr: 101 * K, cw: 1 * K, msgs: 12 }])
+  const groups = { 'main||claude-opus-5-5': { steps: 2, in: 1000, out: 1600, cr: 100 * K, cw: 101 * K } }
+  const s = summarize([{ sid: 'a', startedAt: 0, records: a, groups }, { sid: 'b', startedAt: 70 * MIN, records: b, groups }], { mainTtl: 'auto', subagentTtl: 'auto', coldTokens: 50 * K, outputWeight: 5 })
+  expect(s.cold).toEqual([])
+  expect([s.ttl.main.warm, s.ttl.main.cold]).toEqual([2, 0])
+})

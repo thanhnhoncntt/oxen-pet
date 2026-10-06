@@ -268,10 +268,14 @@ export function ttlOf(records: readonly MeterRecord[], o: Pick<SummaryOptions, '
   return { main: inferTtl(samples, records, 'main', o.mainTtl), subagent: inferTtl(samples, records, 'subagent', o.subagentTtl) }
 }
 
-/** What a set of sessions adds up to: exact totals from their groups, the rest from their records. */
+/**
+ * What a set of sessions adds up to: exact totals from their groups, the rest from their records. Each session's
+ * steps are judged on their own, so one session's last step never pairs with the next one's first.
+ */
 export function summarize(sessions: readonly SessionData[], o: SummaryOptions): Summary {
   const records = sessions.flatMap(s => s.records)
-  const ttl = ttlOf(records, o)
+  const samples = sessions.flatMap(s => cacheSamples(s.records))
+  const ttl = { main: inferTtl(samples, records, 'main', o.mainTtl), subagent: inferTtl(samples, records, 'subagent', o.subagentTtl) }
   const ttlMin = { main: ttl.main.min, subagent: ttl.subagent.min }
   const totals = { steps: 0, in: 0, out: 0, cr: 0, cw: 0 }
   const byRole = { main: zero(), subagent: zero() }
@@ -292,7 +296,13 @@ export function summarize(sessions: readonly SessionData[], o: SummaryOptions): 
       addTo((byAgentType[role === 'main' ? 'main' : agentType || 'subagent'] ??= zero()), g, eq)
     }
   }
-  const cold = coldResumes(records, ttlMin, o.coldTokens)
+  const cold: ColdResume[] = []
+  const flags: Flag[] = []
+  for (const s of sessions) {
+    const own = coldResumes(s.records, ttlMin, o.coldTokens)
+    cold.push(...own)
+    flags.push(...flagsOf(s.records, own))
+  }
 
   return {
     sessions: sessions.length,
@@ -303,7 +313,7 @@ export function summarize(sessions: readonly SessionData[], o: SummaryOptions): 
     byAgentType,
     ttl,
     cold,
-    handoffs: handoffsOf(records),
-    flags: flagsOf(records, cold),
+    handoffs: sessions.flatMap(s => handoffsOf(s.records)),
+    flags,
   }
 }
