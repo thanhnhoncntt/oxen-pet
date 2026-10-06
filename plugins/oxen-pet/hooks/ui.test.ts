@@ -462,3 +462,29 @@ test('the /pet pane draws its pet as an SVG where there is no Raster, and leaves
   expect(JSON.stringify(await other.drawn())).toContain('engine hint')
   await other.unmount()
 })
+
+test('the row layout draws the bars side by side in one window row, and stacks them on a terminal too narrow for it', { options: { hudLayout: 'row' } }, async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const wide = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 160, rows: 40 }, ...HINT })
+  const tree = JSON.stringify(await wide.drawn())
+  expect(tree).toContain('"key":"row"')
+  expect(tree).toContain(' │ ')
+  expect(tree).toContain('♥ HP')
+  await wide.unmount()
+
+  const narrow = await $.ui.mount({ plugin: 'oxen-pet', surface: 'terminal', viewport: { columns: 40, rows: 40 }, ...HINT })
+  const stacked = JSON.stringify(await narrow.drawn())
+  expect(stacked).not.toContain('"key":"row"')
+  expect(stacked).toContain('♥ HP')
+  await narrow.unmount()
+})
+
+test('on the desktop the row layout lays the HUD\'s bars side by side too', { options: { hudLayout: 'row' } }, async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+  const tree = await bandText($, 'desktop')
+  expect(tree).toContain('"flexDirection":"row","alignSelf":"flex-start"')
+  expect(tree).toContain(' │ ')
+})

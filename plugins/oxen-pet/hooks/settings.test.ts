@@ -7,8 +7,8 @@ test('no options give the defaults', () => {
 })
 
 test('each option sets its setting', () => {
-  expect(readSettings({ speed: 'fast', sleepAfter: 300, hud: false, statusLine: false, targets: false, minis: false, cacheTtl: '5m', guard: false, boss: false })).toEqual({
-    pace: 1.6, sleepAfterMs: 300000, hud: false, statusLine: false, targets: false, minis: false, cacheTtlMin: 5, guard: false, boss: false,
+  expect(readSettings({ speed: 'fast', sleepAfter: 300, hud: false, statusLine: false, targets: false, minis: false, cacheTtl: '5m', guard: false, boss: false, hudLayout: 'row' })).toEqual({
+    pace: 1.6, sleepAfterMs: 300000, hud: false, statusLine: false, targets: false, minis: false, cacheTtlMin: 5, guard: false, boss: false, hudRow: true,
   })
 })
 
@@ -31,4 +31,10 @@ test('the cache timer counts an hour unless the user picks five minutes or turns
 test('the shield and the boss are on unless the user turns them off', () => {
   expect([readSettings({}).guard, readSettings({}).boss]).toEqual([true, true])
   expect(readSettings({ guard: 'no', boss: 0 })).toEqual(DEFAULTS)
+})
+
+test('the HUD stacks its bars unless the user lays them in a row', () => {
+  expect(readSettings({}).hudRow).toBe(false)
+  expect(readSettings({ hudLayout: 'row' }).hudRow).toBe(true)
+  expect(readSettings({ hudLayout: 'sideways' }).hudRow).toBe(false)
 })

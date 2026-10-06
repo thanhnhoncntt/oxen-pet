@@ -9,12 +9,13 @@ export type Settings = {
   cacheTtlMin: number // how long the prompt cache stays warm after a turn; 0 hides the cache timer
   guard: boolean // the shield asks before a destructive command runs unasked
   boss: boolean // a failed test run brings a bug boss into the band
+  hudRow: boolean // the HUD lays its bars side by side in one row
 }
 
 const PACE: Record<string, number> = { slow: 0.6, normal: 1, fast: 1.6 }
 const CACHE_TTL: Record<string, number> = { '1h': 60, '5m': 5, off: 0 }
 
-export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true, cacheTtlMin: 60, guard: true, boss: true }
+export const DEFAULTS: Settings = { pace: 1, sleepAfterMs: 60000, hud: true, statusLine: true, targets: false, minis: true, cacheTtlMin: 60, guard: true, boss: true, hudRow: false }
 
 const flag = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
 
@@ -35,5 +36,6 @@ export function readSettings(options: Readonly<Record<string, unknown>>): Settin
     cacheTtlMin: Object.hasOwn(CACHE_TTL, String(options.cacheTtl)) ? CACHE_TTL[String(options.cacheTtl)]! : DEFAULTS.cacheTtlMin,
     guard: flag(options.guard, DEFAULTS.guard),
     boss: flag(options.boss, DEFAULTS.boss),
+    hudRow: options.hudLayout === 'row',
   }
 }

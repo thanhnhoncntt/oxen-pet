@@ -8,7 +8,7 @@ import type { Boss } from './boss'
 import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
 import type { Risk } from './guard'
 import { newStats, noteMp, recordShield, recordTest, recordTool, recordTurn, statsRows } from './stats'
-import { BAR_W, DETAIL_COLOR, HUD_WINDOW_W, cacheLeftMin, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
+import { DETAIL_COLOR, HUD_WINDOW_W, ROW_GAP, cacheLeftMin, hudRowWidth, contextAlert, contextAlertText, frameColor, hudFrom, hudRows, mood, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { minisOnScreen, reconcile } from './minis'
 import type { Mini } from './minis'
@@ -474,8 +474,42 @@ export const register: Register = (on, options) => {
       return next(e)
     }
     const { Box, Raster, Text } = $.ui.resolve(e)
-    const edges = windowEdges(HUD_WINDOW_W)
     const frame = frameColor(body.look.hud)
+    // Laid in a row when the user asked and the terminal has the room, else stacked.
+    const inRow = settings.hudRow ? hudRows({ ...hud, cacheMin }, body.look.hud, true) : []
+    const rowW = hudRowWidth(inRow)
+    if (inRow.length > 0 && (e.viewport === undefined || e.viewport.columns >= rowW + 2)) {
+      const edges = windowEdges(rowW)
+
+      return (
+        <Box flexDirection="column">
+          {await next(e)}
+          <Box flexDirection="column" marginLeft={1}>
+            <Text color={frame}>{edges.top}</Text>
+            <Box key="row">
+              <Text color={frame}>{edges.side}</Text>
+              <Box width={rowW - 2} paddingX={1}>
+                {inRow.map((r, k) => (
+                  <Box key={r.key}>
+                    {k > 0 && <Text color={frame}>{ROW_GAP}</Text>}
+                    <Text color={r.color}>{r.label} </Text>
+                    <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
+                    {r.parts.map((p, i) => (
+                      <Text key={String(i)} color={p.color} bold={p.bold}>
+                        {p.text}
+                      </Text>
+                    ))}
+                  </Box>
+                ))}
+              </Box>
+              <Text color={frame}>{edges.side}</Text>
+            </Box>
+            <Text color={frame}>{edges.bottom}</Text>
+          </Box>
+        </Box>
+      )
+    }
+    const edges = windowEdges(HUD_WINDOW_W)
 
     return (
       <Box flexDirection="column">
@@ -487,7 +521,7 @@ export const register: Register = (on, options) => {
               <Text color={frame}>{edges.side}</Text>
               <Box width={HUD_WINDOW_W - 2} paddingLeft={1}>
                 <Text color={r.color}>{r.label} </Text>
-                <Raster key={`bar-${r.key}`} columns={BAR_W} rows={1} cells={r.cells} />
+                <Raster key={`bar-${r.key}`} columns={r.bar.w} rows={1} cells={r.cells} />
                 {r.parts.map((p, i) => (
                   <Text key={String(i)} color={p.color} bold={p.bold} wrap="truncate">
                     {p.text}
@@ -594,13 +628,15 @@ export const register: Register = (on, options) => {
         // The desktop has no Raster: the pet, its scene and the HUD's bars draw as SVG, and the HUD sits in the band,
         // since the desktop's hint line under the prompt is its own.
         const { Box, Svg, Text } = $.ui.resolve(e)
-        const rows = settings.hud && hud ? hudRows({ ...hud, cacheMin: cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, now) }, body.look.hud) : []
+        const rows = settings.hud && hud ? hudRows({ ...hud, cacheMin: cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, now) }, body.look.hud, settings.hudRow) : []
+        const hudFrame = frameColor(body.look.hud)
         const hudBox = rows.length > 0 && (
-          <Box key="hud" flexDirection="column" alignSelf="flex-start" borderStyle="round" borderColor={frameColor(body.look.hud)} paddingX={1}>
-            {rows.map(r => (
+          <Box key="hud" flexDirection={settings.hudRow ? 'row' : 'column'} alignSelf="flex-start" borderStyle="round" borderColor={hudFrame} paddingX={1}>
+            {rows.map((r, k) => (
               <Box key={r.key} alignItems="center">
+                {settings.hudRow && k > 0 && <Text color={hudFrame}>{ROW_GAP}</Text>}
                 <Text color={r.color}>{r.label} </Text>
-                <Svg source={encodeSvg(r.bar)} alt={`${r.key.toUpperCase()} bar, ${r.pct}% left`} width={BAR_W * HUD_SVG_PX} height={r.bar.h * HUD_SVG_PX} />
+                <Svg source={encodeSvg(r.bar)} alt={`${r.key.toUpperCase()} bar, ${r.pct}% left`} width={r.bar.w * HUD_SVG_PX} height={r.bar.h * HUD_SVG_PX} />
                 {r.parts.map((p, i) => (
                   <Text key={String(i)} color={p.color} bold={p.bold}>
                     {p.text}

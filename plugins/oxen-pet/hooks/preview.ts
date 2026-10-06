@@ -1,6 +1,6 @@
 import type { Anim, Mode } from '../types'
 import { TICK_MS, leapClipMs, step } from './anim'
-import { HUD_WINDOW_W, frameColor, hudRows, windowEdges } from './hud'
+import { HUD_WINDOW_W, ROW_GAP, frameColor, hudRowWidth, hudRows, windowEdges } from './hud'
 import type { Hud } from './hud'
 import { BOSS_W, DEFEAT_MS, drawBoss } from './boss'
 import { BODY_W, FACES, HEIGHT, MODES, canvas, compose, composeFace, overlay } from './pixels'
@@ -139,6 +139,14 @@ export function previewPage(body: Body, notes: string[]): string {
           .join('\n')}\n${escapeHtml(edges.bottom)}</pre>`
     return `<figure class="wide"><figcaption><b>${label}</b></figcaption>${inside}</figure>`
   }).join('')
+  // The first sample again, laid in a row as the HUD layout setting's `row` draws it.
+  const inRow = hudRows((SAMPLE_HUDS[0] as [string, Hud])[1], body.look.hud, true)
+  const rowEdges = windowEdges(hudRowWidth(inRow))
+  const rowHud = inRow.length === 0
+    ? ''
+    : `<figure class="wide"><figcaption><b>In a row</b><span>HUD layout: row</span></figcaption><pre class="hud" style="color: ${frameColor(body.look.hud)}">${escapeHtml(rowEdges.top)}\n${rowEdges.side} ${inRow
+        .map(r => `<span style="color: ${r.color}">${escapeHtml(r.label)} </span><canvas class="bar" data-cells="${r.cells}"></canvas>${r.parts.map(p => `<span style="color: ${p.color}${p.bold ? '; font-weight: bold' : ''}">${escapeHtml(p.text)}</span>`).join('')}`)
+        .join(escapeHtml(ROW_GAP))} ${rowEdges.side}\n${escapeHtml(rowEdges.bottom)}</pre></figure>`
   const noteList = notes.length > 0 ? `<section class="notes"><h2>Notes</h2><ul>${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></section>` : ''
 
   return `<!doctype html>
@@ -168,7 +176,7 @@ export function previewPage(body: Body, notes: string[]): string {
   .wide canvas[data-kind] { width: 100%; height: auto; }
   .lines ul { margin: 4px 0 0; padding: 0; list-style: none; font-weight: bold; }
   .hud { margin: 0; line-height: 18px; }
-  .hud canvas.bar { width: 180px; height: 18px; vertical-align: top; }
+  .hud canvas.bar { height: 18px; vertical-align: top; } /* as wide as its cells, which the script sets */
 </style>
 </head>
 <body>
@@ -188,7 +196,7 @@ ${scenes.length > 0 ? `<h2>Scene</h2>\n<div class="stack">${tiles(scenes, 'scene
 <p>The line beside the pet in each mode. One shows at a time, and the next takes over every 4 seconds.</p>
 <div class="grid wide-cells">${statusLines}</div>
 <h2>HUD</h2>
-<div class="stack">${huds}</div>
+<div class="stack">${huds}${rowHud}</div>
 <h2>Frames</h2>
 <p>Each clip as the mod squashes and stretches the sprite, before eyes and props go on.</p>
 <div class="grid">${tiles(clips, 'clip')}</div>

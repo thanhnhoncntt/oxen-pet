@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
 
-import { BAR_W, DETAIL_COLOR, LOW_HP, contextAlert, contextAlertText, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
+import { BAR_W, DETAIL_COLOR, ROW_BAR_W, hudRowWidth, LOW_HP, contextAlert, contextAlertText, HUD_WINDOW_W, MARKER_COLOR, barCanvas, cacheLeftMin, emptyInMin, fmtMin, frameColor, hudFrom, hudRows, mood, spareOf, windowEdges } from './hud'
 
 const usage = (over: Partial<SessionUsage> = {}): SessionUsage => ({
   startedAt: 0,
@@ -160,4 +160,20 @@ test('the longest rows fit inside the HUD window', () => {
       expect([...r.label].length + 1 + BAR_W + r.parts.map(p => [...p.text].length).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(HUD_WINDOW_W - 3)
     }
   }
+})
+
+test('in a row each bar is shorter and keeps only its reading and one short detail', () => {
+  const rows = hudRows({ hp: 100, cacheMin: 52, mp: 92, mpResetsInMin: 129, st: 74, stResetsInMin: 3540 }, {}, true)
+  const text = (r: (typeof rows)[number]) => r.label + r.parts.map(p => p.text).join('')
+  expect(rows.map(text)).toEqual(['♥ HP 100%  cache 52m', '✦ MP 92%  2h09m', '◆ ST 74%  2d11h'])
+  expect(rows.every(r => r.bar.w === ROW_BAR_W)).toBe(true)
+  // The warnings stay: /compact for HP, and MP running out in place of its reset.
+  const low = hudRows({ hp: 12, cacheMin: 3, mp: 30, mpResetsInMin: 200 }, {}, true)
+  expect(low.map(text)).toEqual(['⚠ HP 12%  /compact', '✦ MP 30%  empty ~43m'])
+})
+
+test('a row is as wide as its bars and text, with room between them and the frame', () => {
+  const rows = hudRows({ hp: 100, cacheMin: 52, mp: 92, mpResetsInMin: 129, st: 74, stResetsInMin: 3540 }, {}, true)
+  const content = rows.reduce((n, r) => n + [...r.label].length + 1 + ROW_BAR_W + r.parts.reduce((m, p) => m + [...p.text].length, 0), 0)
+  expect(hudRowWidth(rows)).toBe(content + 3 * (rows.length - 1) + 4)
 })

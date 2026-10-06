@@ -90,6 +90,16 @@
       "title": "Bug boss",
       "description": "A failed test run brings a bug boss into the band; the next passing run defeats it.",
       "default": true
+    },
+    "hudLayout": {
+      "type": "string",
+      "title": "HUD layout",
+      "description": "stacked: one bar per line, with every detail. row: the bars side by side in one line, each with its reading and one short detail; stacked again on a terminal too narrow for the row.",
+      "options": [
+        "stacked",
+        "row"
+      ],
+      "default": "stacked"
     }
   }
 }

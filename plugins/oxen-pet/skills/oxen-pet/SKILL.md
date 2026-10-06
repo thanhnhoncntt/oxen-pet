@@ -148,6 +148,7 @@ Options left out keep their values. The change applies after Claude Code restart
 | `targets` | `true`, `false` | The status line names the file, pattern, command, host, or search query. `false` suits a shared screen. |
 | `minis` | `true`, `false` | A mini behind the pet for each running subagent. |
 | `cacheTtl` | `1h`, `5m`, `off` | How long the HUD counts the prompt cache warm after a turn. |
+| `hudLayout` | `stacked`, `row` | The HUD's bars one per line, or side by side in one line with a short detail each. |
 | `guard` | `true`, `false` | The shield: ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
 | `boss` | `true`, `false` | A failed test run brings a bug boss into the band. |
 

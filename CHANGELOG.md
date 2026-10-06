@@ -25,6 +25,10 @@ A shield, a boss, a stats pane, and the HUD on the desktop.
 - **Low-context alert.** As HP drops under 20%, a toast suggests `/compact` or a hand-off, and the
   pet says so in red, once until HP climbs back to 30%. `⚠ HP` and `/compact` now show under 20%
   (was 10%).
+- **HUD layout.** A new setting, **HUD layout** (`hudLayout`): `row` lays HP, MP and ST side by
+  side in one line, each bar shorter, with its reading and one short detail (the cache for HP, the
+  time to reset for MP and ST) or its warning. A terminal too narrow for the row gets the stacked
+  HUD. `stacked` stays the default.
 - **Desktop.** The Desktop app's Code tab now shows the HUD under the pet, each bar drawn as SVG,
   and a theme's scene, as one SVG band.
 - The preview page shows the new `guard` motion and the boss fight. Themes can set `props.guard`,
