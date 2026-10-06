@@ -98,7 +98,7 @@ const SUMMARY = {
 
 test('the report adds the sessions up: cache, token equivalent, models, agents, TTL, cold resumes, handoffs, flags', () => {
   expect(reportText(SUMMARY, { days: 7, skipped: 2 }).split('\n')).toEqual([
-    'oxen-meter: 3 sessions in the last 7 days (2 emptied files skipped)',
+    '3 sessions in the last 7 days (2 emptied files skipped)',
     'Cache      hit 93% · read 120M · written 9.1M · uncached 40K · output 2.1M',
     'Token eq.  41M: main 30M · subagent 11M',
     'Models     opus-5-5 hit 93%, 35M eq · sonnet-5-5 hit 80%, 6.0M eq',
@@ -113,7 +113,7 @@ test('the report adds the sessions up: cache, token equivalent, models, agents, 
 })
 
 test('a report with no session says where it looked', () => {
-  expect(reportText({ ...SUMMARY, sessions: 0 }, { days: 7, skipped: 0 })).toBe('oxen-meter: no session in the last 7 days.')
+  expect(reportText({ ...SUMMARY, sessions: 0 }, { days: 7, skipped: 0 })).toBe('No session in the last 7 days.')
 })
 
 test('the pane adds the session\'s token equivalent, TTLs, cold resumes and where its file goes', () => {

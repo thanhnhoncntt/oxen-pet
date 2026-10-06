@@ -271,7 +271,7 @@ async function readSessions($: EngineInterface, m: Meter, s: Settings, days: num
 async function report($: EngineInterface, m: Meter, s: Settings, arg: string | undefined) {
   const days = daysOf(arg, REPORT_DAYS)
   if (m.root === undefined) {
-    return `oxen-meter: ${filesText(m, 0)}`
+    return `No report: ${filesText(m, 0)}`
   }
   const { files, skipped } = await readSessions($, m, s, days)
   const sessions: SessionData[] = files.map(f => ({ sid: f.sid, startedAt: f.startedAt, records: f.records, groups: f.groups }))
@@ -283,7 +283,7 @@ async function report($: EngineInterface, m: Meter, s: Settings, arg: string | u
 async function exportTo($: EngineInterface, m: Meter, s: Settings, arg: string | undefined) {
   const days = daysOf(arg, EXPORT_DAYS)
   if (m.root === undefined) {
-    return `oxen-meter: no export written: ${filesText(m, 0)}`
+    return `No export written: ${filesText(m, 0)}`
   }
   try {
     const { files } = await readSessions($, m, s, days)
@@ -295,9 +295,9 @@ async function exportTo($: EngineInterface, m: Meter, s: Settings, arg: string |
     await writeGuarded($, m.root, path, exportText(exportOf(sessions, { label: s.userLabel, version: m.version, day, days, settings })))
     const n = sessions.length
 
-    return `oxen-meter: wrote ${n} session${n === 1 ? '' : 's'} of the last ${days} days to ${path}. Send that file to whoever builds the team report.`
+    return `Wrote ${n} session${n === 1 ? '' : 's'} of the last ${days} days to ${path}. Send that file to whoever builds the team report.`
   } catch (err) {
-    return `oxen-meter: no export written: ${err instanceof Error ? err.message : String(err)}`
+    return `No export written: ${err instanceof Error ? err.message : String(err)}`
   }
 }
 

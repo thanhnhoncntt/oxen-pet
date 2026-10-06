@@ -320,7 +320,7 @@ test('/meter report adds up the session files of the last days, and skips emptie
   await clock.advance(1000)
 
   const out = await $.command.run({ command: 'meter', args: 'report 7', ...RUN } as never)
-  expect(String(out.text)).toContain('oxen-meter: 2 sessions in the last 7 days (1 emptied file skipped)')
+  expect(String(out.text)).toContain('2 sessions in the last 7 days (1 emptied file skipped)')
   expect(String(out.text)).toContain('Agents     main')
   expect(String(out.text)).toContain('Explore')
 })
@@ -462,7 +462,7 @@ test('/meter export writes the last days\' sessions, anonymized, to the exports 
   const out = await $.command.run({ command: 'meter', args: 'export', ...RUN } as never)
   const path = fs.writes.find(p => p.includes('/exports/'))!
   expect(path).toMatch(/^\/home\/me\/meter\/exports\/oxen-meter-export-\d{8}-nhon-n\.json$/)
-  expect(String(out.text)).toContain(`wrote 1 session of the last 30 days to ${path}`)
+  expect(String(out.text)).toContain(`Wrote 1 session of the last 30 days to ${path}`)
   const text = fs.files.get(path)!.text
   expect(JSON.parse(text)).toMatchObject({ kind: 'oxen-meter-export', v: 1, label: 'Nhon N.', days: 30, summary: { sessions: 1 } })
   expect(JSON.parse(text).sessions[0].id).toMatch(/^[0-9a-f]{12}$/)
@@ -478,4 +478,13 @@ test('with no data folder, /meter export writes nothing and says how to set one'
   const out = await $.command.run({ command: 'meter', args: 'export 7', ...RUN } as never)
   expect(fs.writes).toEqual([])
   expect(String(out.text)).toContain('set Data folder')
+})
+
+test('a command\'s output leaves the plugin\'s name to Claude Code, which shows it', DATA, async ($, on) => {
+  stubEngine(on)
+  stubFs(on)
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  for (const args of ['report', 'export', 'nonsense']) {
+    expect(String((await $.command.run({ command: 'meter', args, ...RUN } as never)).text)).not.toMatch(/^oxen-meter:/)
+  }
 })

@@ -211,11 +211,11 @@ const TOP_COLD = 5
 /** `/meter report`: what `s` adds up to over the last `days`, one row a line, the cold resumes that cost most first. */
 export function reportText(s: Summary, o: { days: number; skipped: number }): string {
   if (s.sessions === 0) {
-    return `oxen-meter: no session in the last ${plural(o.days, 'day')}.`
+    return `No session in the last ${plural(o.days, 'day')}.`
   }
   const byEq = <T extends { eq: number }>(rec: Record<string, T>) => Object.entries(rec).sort((a, b) => b[1].eq - a[1].eq)
   const lines = [
-    `oxen-meter: ${plural(s.sessions, 'session')} in the last ${plural(o.days, 'day')}${o.skipped > 0 ? ` (${plural(o.skipped, 'emptied file')} skipped)` : ''}`,
+    `${plural(s.sessions, 'session')} in the last ${plural(o.days, 'day')}${o.skipped > 0 ? ` (${plural(o.skipped, 'emptied file')} skipped)` : ''}`,
     `${pad('Cache')} hit ${pct(s.totals.cr, s.totals.cr + s.totals.cw + s.totals.in)}% · read ${fmtTokens(s.totals.cr)} · written ${fmtTokens(s.totals.cw)} · uncached ${fmtTokens(s.totals.in)} · output ${fmtTokens(s.totals.out)}`,
     `${pad('Token eq.')} ${eqText(s)}`,
     `${pad('Models')} ${byEq(s.byModel).map(([m, g]) => `${shortModel(m)} hit ${Math.round(hitRate(g) * 100)}%, ${fmtTokens(g.eq)} eq`).join(' · ')}`,
