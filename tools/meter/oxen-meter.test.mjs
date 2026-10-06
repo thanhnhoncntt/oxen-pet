@@ -1,7 +1,7 @@
 // Tests for the CLI: node --test tools/meter/oxen-meter.test.mjs (Node 22.18 or later). Every file lives in a temporary
 // folder; nothing under the real home folder is read or written.
 import assert from 'node:assert/strict'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -338,6 +338,16 @@ test('Devin: a turn\'s end imports its session, and the hooks\' times go with it
   assert.equal(file.tool, 'devin')
   assert.equal(file.timings['devin UserPromptSubmit'].count, 1)
   assert.equal(existsSync(join(h.data, 'sessions', `codex-${ROOT_ID}.json`)), false)
+})
+
+test('the backup of a hook config keeps its file mode, so a private config stays private', async () => {
+  const h = home()
+  const path = join(h.dir, '.codex', 'hooks.json')
+  writeFileSync(path, '{"hooks":{}}')
+  chmodSync(path, 0o600)
+  await run(['setup', 'codex'], { ...h.flags, write: true, yes: true })
+  assert.equal(statSync(`${path}.oxen-meter.bak`).mode & 0o777, 0o600)
+  assert.equal(statSync(path).mode & 0o777, 0o600)
 })
 
 test('setup devin adds its hooks under "hooks" in Devin\'s config, keeping every other setting and a backup', async () => {

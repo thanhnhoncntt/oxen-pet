@@ -1,5 +1,5 @@
 // The CLI's commands, for tools/meter/oxen-meter.mjs, which loads this file once it can fail quietly.
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -73,13 +73,16 @@ export function importLine(r) {
   return `${codex}${devin}`
 }
 
-/** Writes a hook config through `hookConfigError`. */
-function writeHookConfig(path, text, home) {
+/** Writes a hook config through `hookConfigError`, with the file mode `mode` when one is given. */
+function writeHookConfig(path, text, home, mode) {
   const error = hookConfigError(path, home)
   if (error !== undefined) {
     throw new Error(error)
   }
   writeFileSync(path, text)
+  if (mode !== undefined) {
+    chmodSync(path, mode)
+  }
 }
 
 const TRUST = {
@@ -119,7 +122,8 @@ async function setup(tool, flags, config) {
     }
   }
   if (existsSync(path)) {
-    writeHookConfig(`${path}${BACKUP}`, readFileSync(path, 'utf8'), config.home)
+    // The backup is as private as the config it keeps.
+    writeHookConfig(`${path}${BACKUP}`, readFileSync(path, 'utf8'), config.home, statSync(path).mode & 0o777)
   }
   writeHookConfig(path, `${JSON.stringify(mergeHooks(current, ours), null, 2)}\n`, config.home)
 

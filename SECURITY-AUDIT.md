@@ -196,7 +196,8 @@ runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files a
   `~/.config/devin/config.json` alike, keeping every other key. Never `~/.claude/settings.json`, which Devin reads too. `lib/setup.mjs`'s `hookConfigError` holds it to those two files
   (and Devin's `~/.config/devin/config.json` with its backup): a plain file or none yet, in a folder that is there, not
   a symbolic link, landing where it is spelled. It keeps every hook the user has, drops its own older entries, and
-  refuses a file that is not JSON. Without `--write` it only prints. Codex runs a new hook only after the user trusts it
+  refuses a file that is not JSON. The backup gets the config's own file mode, so a `600` config is not copied out
+  readable by others. Without `--write` it only prints. Codex runs a new hook only after the user trusts it
   in `/hooks`. The command it writes names this Node (`process.execPath`) and this CLI by absolute path.
 - **`hook codex`** reads the event's JSON on stdin. On a prompt (`UserPromptSubmit`) it reads the last 512 KB of the
   main thread's rollout; on a follow-up to a subagent (`PreToolUse` on `followup_task` or `send_message`) the session
