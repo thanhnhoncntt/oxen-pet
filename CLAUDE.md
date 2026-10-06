@@ -11,7 +11,7 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 - **HUD**: the window below the prompt with up to three bars. **HP** is the context window left, **MP** the 5-hour rate limit left, **ST** the 7-day rate limit left.
 - **reading**: the bold number after a bar. **detail**: the grey text after the reading.
 - **even pace**: where MP or ST would be if its limit were used evenly through its window, marked on the bar; **spare** is how far the reading is ahead of it. **cache timer**: the minutes the prompt cache stays warm after the main thread's last turn, shown beside HP.
-- **shield**: the `tool.check` hook that asks Block it / Run it before a destructive Bash command runs unasked; **guard** is its mode, setting and module (`guard.ts`). **target** of an `rm` is a path it deletes; its **size** is the files under it.
+- **shield**: the `tool.check` hook that asks Block it / Run it before a destructive Bash command runs unasked; **guard** is its mode, setting and module (`guard.ts`). The question names the paths an `rm` deletes, and the **size** of each: the files under it.
 - **boss**: the bug a failed test run brings into the band, from `boss.ts`; a **hit** is each failed run while it stands; a passing run **defeats** it.
 - **low-context alert**: the toast and red status line as HP drops under `LOW_HP`.
 - **pane**: the `/pet` pane, with the session's **stats** from `stats.ts`.

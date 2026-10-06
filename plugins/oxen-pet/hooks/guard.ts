@@ -143,7 +143,8 @@ export function riskOf(command: string): Risk | undefined {
   const targets: Target[] = []
   let movedDir = false
   for (const segment of segments(command)) {
-    const [name = '', ...args] = commandWords(words(segment))
+    const [word = '', ...args] = commandWords(words(segment))
+    const name = word.split('/').pop() ?? '' // `/bin/rm` is rm
     if (name === 'cd' || name === 'pushd') {
       movedDir = true
     } else if (name === 'rm' && hasFlag(args.filter((_, i) => !args.slice(0, i).includes('--')), '[rR]', '--recursive')) {
@@ -225,12 +226,13 @@ export async function sizeOf(path: string, fs: GuardFs): Promise<Size> {
 
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
-function sizeText(size: Size | undefined) {
+function sizeText(target: Target, size: Size | undefined) {
   if (size === undefined) {
     return 'not sized'
   }
+  // Claude's shell may have moved since the session began, so a relative path the mod cannot find may still be there.
   if (size.isMissing) {
-    return 'not there'
+    return target.path.startsWith('/') ? 'not there' : 'not found from the project folder'
   }
 
   return `${size.files}${size.isCapped ? '+' : ''} file${size.files === 1 && !size.isCapped ? '' : 's'}`
@@ -238,7 +240,7 @@ function sizeText(size: Size | undefined) {
 
 /** The question the shield asks before `command` runs; `sizes` line up with `risk.targets`, undefined where unsized. */
 export function guardQuestion(command: string, risk: Risk, sizes: (Size | undefined)[]) {
-  const shown = risk.targets.slice(0, MAX_TARGETS).map((t, i) => `${cut(t.path, MAX_PATH)}: ${sizeText(sizes[i])}`)
+  const shown = risk.targets.slice(0, MAX_TARGETS).map((t, i) => `${cut(t.path, MAX_PATH)}: ${sizeText(t, sizes[i])}`)
   const more = risk.targets.length > MAX_TARGETS ? [`${risk.targets.length - MAX_TARGETS} more`] : []
   const radius = shown.length > 0 ? ` ${[...shown, ...more].join(' · ')}.` : ''
 

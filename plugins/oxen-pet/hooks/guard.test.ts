@@ -4,7 +4,7 @@ import { GUARD_CAP, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
 import type { GuardFs } from './guard'
 
 test('a recursive rm, a force push, a hard reset and a forced clean are risky; everyday commands are not', () => {
-  for (const command of ['rm -rf build', 'rm -r old', 'sudo rm -Rf /var/tmp/x', 'git push --force origin main', 'git push -f', 'git reset --hard HEAD~1', 'git clean -fdx', 'npm test && rm -fr dist']) {
+  for (const command of ['rm -rf build', 'rm -r old', 'sudo rm -Rf /var/tmp/x', 'git push --force origin main', 'git push -f', 'git reset --hard HEAD~1', 'git clean -fdx', 'npm test && rm -fr dist', '/bin/rm -rf x', '/usr/bin/git push -f']) {
     expect(riskOf(command)).toBeDefined()
   }
   for (const command of ['rm notes.txt', 'ls -la', 'git push origin main', 'git push --force-with-lease', 'git reset HEAD~1', 'git status', 'npm test', 'git clean -n', 'echo done']) {
@@ -60,12 +60,14 @@ test('the size of a target counts its files, never follows a link, and stops at 
 })
 
 test('the question says what the command does, how much each target holds, and asks to run it', () => {
-  const risk = riskOf('rm -rf build *.log missing')!
-  const question = guardQuestion('rm -rf build *.log missing', risk, [{ files: 132 }, undefined, { files: 0, isMissing: true }])
+  const risk = riskOf('rm -rf build *.log missing /tmp/gone')!
+  const question = guardQuestion('rm -rf build *.log missing /tmp/gone', risk, [{ files: 132 }, undefined, { files: 0, isMissing: true }, { files: 0, isMissing: true }])
   expect(question).toContain('deletes files and folders for good')
   expect(question).toContain('build: 132 files')
   expect(question).toContain('*.log: not sized')
-  expect(question).toContain('missing: not there')
+  // A relative path the mod cannot find may be under the folder Claude's shell moved to.
+  expect(question).toContain('missing: not found from the project folder')
+  expect(question).toContain('/tmp/gone: not there')
   expect(question.endsWith('?')).toBe(true)
 
   const capped = guardQuestion('rm -rf big', riskOf('rm -rf big')!, [{ files: GUARD_CAP, isCapped: true }])

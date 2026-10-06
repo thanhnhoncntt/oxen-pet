@@ -160,7 +160,7 @@ The HUD is the window below the prompt, with up to three bars:
 
 - `frame` is the window frame's color. Default `#5aa9ff`.
 - A bar's look is `{ "label", "color", "fill" }`, each optional.
-  - `label` is up to 6 characters, each one cell wide, so the bars line up. A custom label stays as written, where the default `♥ HP` turns to `⚠ HP` under 10 %.
+  - `label` is up to 6 characters, each one cell wide, so the bars line up. A custom label stays as written, where the default `♥ HP` turns to `⚠ HP` under 20 %.
   - `color` is the label's color.
   - `fill` is `[from, to]`, the bar's gradient from its left end to its right while it is healthy. The reading, the bold number after the bar, takes the `to` color.
 - `false` in place of a look hides that bar. When all three are hidden, the HUD is gone.
