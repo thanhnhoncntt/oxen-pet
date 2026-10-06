@@ -26,9 +26,10 @@ calls: $.agent.list, $.clock.every, $.clock.now, $.command.register, $.fs.list, 
 
 | Call | Used for |
 | --- | --- |
-| `$.fs.read` | `assets/slime.json` under the plugin's own root |
+| `$.fs.read` | A built-in theme under the plugin's own root (`assets/<name>.json`), and the user's `<name>.theme.json` in their custom folder. A name is letters, digits, `-` and `_` only, so a read stays in that folder |
+| `$.fs.exists` | Whether the custom folder has `<name>.theme.json`, before the built-in theme of that name |
 | `$.fs.stat` | `preview_theme`: where the path leads, before writing. The shield: what an `rm` target is |
-| `$.fs.list` | The shield only: counts the files under an `rm` target, up to 2000 files, 8 folders deep and 300 folders; never follows a symbolic link. Names are counted, never kept |
+| `$.fs.list` | `/pet theme`: the `.theme.json` files in the custom folder. The shield: counts the files under an `rm` target, up to 2000 files, 8 folders deep and 300 folders; never follows a symbolic link. Names are counted, never kept |
 | `$.fs.write` | `preview_theme` only, to an absolute path whose file name is `oxen-pet-preview*.html` with no `..`, in a folder that already exists, and that is not a symbolic link and lands on an `oxen-pet-preview*.html` file (`hooks/previewPath.ts`) |
 | `$.session.usage` | context and rate-limit numbers for the HUD |
 | `$.agent.list` | count of running subagents, for the minis |
@@ -87,6 +88,10 @@ grep -nE "src=|href=|<link|@import|url\(" plugins/oxen-pet/hooks/preview.ts
    about. If the classifier throws, Claude Code's verdict stands. **Shield** (`guard`) turns it off.
    The `tool.call` hook also reads a Bash command to tell a test run (`hooks/boss.ts`) and keeps
    counts, never the command, for `/pet`.
+7. The custom folder (1.1.0): the mod reads themes from `~/.claude/oxen-pet/themes` (found from the plugin's
+   install path, since the mod reads no environment) or the absolute path the **Custom folder** setting
+   gives, with no `..`, `~` or `$`. It reads only `<name>.theme.json` for a name of letters, digits, `-` and
+   `_`, and never writes there. A theme from it goes through `readTheme` like any other.
 
 ## Taking an upstream change
 

@@ -4,7 +4,8 @@
 
 ### A pixel pet and an RPG-style usage HUD for Claude Code
 
-A little slime lives above your Claude Code prompt and acts out every tool call. Below the prompt, a
+A pixel **Luffy** lives above your Claude Code prompt and acts out every tool call, shifting through
+**five gears** as Claude reads, runs, edits, fails and wins. Below the prompt, a
 game HUD shows your **context window**, **5-hour and weekly rate limits**, and **prompt cache**,
 so you always know how much is left. In bypass mode, its **shield** stops destructive commands
 until you say so, and failing tests summon a **bug boss** to beat.
@@ -15,7 +16,7 @@ until you say so, and failing tests summon a **bug boss** to beat.
 [![No network](https://img.shields.io/badge/network-none-a78bfa?style=flat-square)](SECURITY-AUDIT.md)
 [![Audited fork](https://img.shields.io/badge/fork-audited-fbbf24?style=flat-square)](SECURITY-AUDIT.md)
 
-<img src="docs/images/demo.gif" alt="oxen-pet in Claude Code: a pixel slime reads, searches, fetches, edits and runs tests while the HP, MP and ST bars below the prompt track context, rate limits and prompt cache" width="860">
+<img src="docs/images/demo.gif" alt="oxen-pet in Claude Code: a pixel Luffy reads, searches, fetches, edits and runs tests while the HP, MP and ST bars below the prompt track context, rate limits and prompt cache" width="860">
 
 [Install](#install) · [The pet](#what-the-pet-does) · [The HUD](#the-hud) · [The shield](#the-shield) · [/pet](#pet-session-stats) · [Make it yours](#make-it-yours) · [Settings](#settings) · [Security](#privacy-and-security) · [FAQ](#faq)
 
@@ -54,9 +55,22 @@ claude plugin marketplace add thanhnhoncntt/oxen-pet
 claude plugin install oxen-pet@oxen-pet
 ```
 
-Start a new session, or run `/reload-plugins` in an open one. The slime appears above the prompt.
+Start a new session, or run `/reload-plugins` in an open one. Luffy appears above the prompt.
 
 To uninstall, run `claude plugin uninstall oxen-pet@oxen-pet`.
+
+## Luffy's five gears
+
+| Gear | When | Luffy |
+| --- | --- | --- |
+| **Gear 1** | Idle, sleeping, thinking, reading, searching | Straw hat and grin; gnaws on meat while he reads. *"I'm gonna be King of the Pirates!"* |
+| **Gear 2** | Bash, running, jumping | Pink and steaming. *"Gear Second! $ npm test"* |
+| **Gear 3** | Editing | Slams a giant fist. *"Gomu Gomu no Elephant Gun!"* |
+| **Gear 4** | A failed call, the shield up | Red haki, smoking shoulders. *"Not on my ship!"* |
+| **Gear 5** | A turn ends, a boss falls | White cloud hair, red eyes, the drums of liberation. *"Shishishi! Freedom!"* |
+
+He calls the web on a Den Den Mushi (*"puru puru puru…"*), sends straw-hat minis out as subagents
+(*"Zoro, don't get lost!"*), and runs over the sea under the Jolly Roger.
 
 ## What the pet does
 
@@ -150,13 +164,23 @@ Ask Claude in any session, or run `/oxen-pet:oxen-pet`:
 
 > *"Make my pet an orange cat with a fish instead of the book, and put it on the moon."*
 
-Claude can change the pet, its props, minis, status lines, HUD colors and labels, or add a scene with
-ground, sky and obstacles the pet leaps over. It writes a preview page (`/tmp/oxen-pet-preview-*.html`)
-with every motion and face first, and sets the theme only when you approve. To undo, ask for the
-slime back.
+Claude can change the pet, its props, minis, status lines, HUD colors and labels, its look in each
+mode (`forms`, like Luffy's gears), or add a scene with ground, sky and obstacles the pet leaps over. It
+writes a preview page (`/tmp/oxen-pet-preview-*.html`) with every motion and face first, and sets the
+theme only when you approve. To undo, ask for the default pet back.
 
-Two more pets ship with the plugin, [`duck.json`](plugins/oxen-pet/assets/duck.json) and
-[`alien.json`](plugins/oxen-pet/assets/alien.json) (which uses every field). The theme format is in
+**Your pets survive updates.** Claude saves each pet you make as `<name>.theme.json` in
+`~/.claude/oxen-pet/themes/`, outside the plugin's install folder, which an update replaces. Drop
+theme files there yourself, or point **Custom folder** at a folder you sync.
+
+```text
+/pet theme          list the built-in pets and yours
+/pet theme zoro     switch now, no tokens, and keep it for later sessions
+```
+
+Set **Theme** to make one the pet every session starts with. Built in: `luffy` (default), `slime`,
+[`duck`](plugins/oxen-pet/assets/duck.json), and [`alien`](plugins/oxen-pet/assets/alien.json) (which
+uses every field). The theme format is in
 [`FORMAT.md`](plugins/oxen-pet/skills/oxen-pet/FORMAT.md).
 
 ## Settings
@@ -172,6 +196,8 @@ In a session, run `/plugin configure oxen-pet@oxen-pet`.
 | Name files and commands | **off** | The status line names the file, pattern, command, host, or search query a tool works on. |
 | Subagent minis | on | A mini behind the pet for each running subagent. |
 | Cache timer | `1h` | How long the HUD counts the prompt cache warm after a turn: `1h`, `5m`, or `off`. |
+| Theme | `luffy` | The pet a session starts with: `luffy`, `slime`, `duck`, `alien`, or the name of one of your own. |
+| Custom folder | empty | The folder of your own `<name>.theme.json` files. Empty: `~/.claude/oxen-pet/themes`. |
 | HUD layout | `stacked` | `stacked`: one bar per line, with every detail. `row`: the three bars side by side in one line (about 96 columns), each with its reading and one short detail; back to stacked on a narrower terminal. |
 | Shield | on | Ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
 | Bug boss | on | A failed test run brings a bug boss into the band. |
@@ -288,7 +314,8 @@ plugins/oxen-pet/                 the plugin: a Claude Code mod
   hooks/settings.ts               reads the settings
   hooks/*.test.ts                 the tests, one file per module
   types/index.d.ts                the mod's state
-  assets/                         slime (default), duck, alien themes
+  assets/                         luffy (default), slime, duck, alien themes
+  hooks/custom.ts                 the custom themes folder and theme names
   skills/oxen-pet/                the skill that draws a pet with you, and the pet format
 tools/preview/build.mjs           writes the preview of a theme file
 tools/demo/record.mjs             records docs/images/demo.gif and hud.png (developer tool, never shipped)
@@ -312,8 +339,12 @@ mod's own modules: no screen capture and no tokens. Contributor rules are in [`C
 
 ## License
 
+Luffy, the Straw Hat Jolly Roger and One Piece are © Eiichiro Oda / Shueisha / Toei Animation. The
+pixel Luffy here is fan art, drawn for this project; oxen-pet is not affiliated with or endorsed by
+them. The code is MIT.
+
 [MIT](LICENSE). Original work © 2026 halluqinate ([pixel-pet](https://github.com/Namenomeaning/pixel-pet));
 fork changes © 2026 NhonNguyen.
 
-<sub>Keywords: Claude Code plugin, Claude Code mod, Claude Code statusline, Claude Code HUD, bypass permissions guard, rm -rf protection, usage tracker,
+<sub>Keywords: Claude Code plugin, Claude Code mod, Claude Code statusline, Claude Code HUD, bypass permissions guard, rm -rf protection, usage tracker, One Piece Luffy pixel art, Gear 5,
 rate limit monitor, context window, prompt cache, terminal pet, pixel art, Anthropic Claude.</sub>

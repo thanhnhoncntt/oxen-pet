@@ -5,7 +5,18 @@ version in `plugins/oxen-pet/.claude-plugin/plugin.json` changes; see README's U
 
 ## 1.1.0 — 2026-10-06
 
-A shield, a boss, a stats pane, and the HUD on the desktop.
+Luffy, a shield, a boss, a stats pane, and the HUD on the desktop.
+
+- **Luffy is the default pet**, in five gears: Gear 1 while idle or reading (with meat), Gear 2 (pink,
+  steaming) for Bash and running, Gear 3 (a giant fist) while editing, Gear 4 (red haki) when a call
+  fails or the shield is up, and Gear 5 (white hair, the drums of liberation) when a turn ends. He uses a
+  Den Den Mushi for the web, sends straw-hat minis out as subagents, and runs over the sea. Fan art; One
+  Piece belongs to its owners. The slime, duck and alien stay built in.
+- **Your own pets, kept through updates.** Themes live as `<name>.theme.json` in
+  `~/.claude/oxen-pet/themes/` (or the **Custom folder** setting), outside the plugin's install folder.
+  `/pet theme` lists the built-in pets and yours; `/pet theme <name>` switches at once, with no tokens,
+  and keeps the choice. The **Theme** setting picks the pet a session starts with. A theme that does not
+  read gives way to Luffy, with a toast.
 
 - **Shield.** Before a destructive Bash command runs *unasked* (bypass or auto mode, or an allow
   rule), the pet raises a shield and asks **Block it** / **Run it**. The question names what the

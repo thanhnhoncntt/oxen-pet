@@ -1,7 +1,7 @@
 {
   "name": "oxen-pet",
   "version": "1.1.0",
-  "description": "A pixel pet above the Claude Code prompt that acts out each tool call, an HP/MP/ST HUD for context, rate limits, and prompt cache, a shield that asks before destructive commands, a bug boss for failing tests, and a /pet stats pane. Hardened fork of pixel-pet.",
+  "description": "A pixel Luffy above the Claude Code prompt who acts out each tool call in five gears, an HP/MP/ST HUD for context, rate limits, and prompt cache, a shield that asks before destructive commands, a bug boss for failing tests, and a /pet stats pane. Your own pets live in a folder updates never touch.",
   "author": {
     "name": "NhonNguyen"
   },
@@ -21,7 +21,10 @@
     "guard",
     "safety",
     "bypass-permissions",
-    "tests"
+    "tests",
+    "one-piece",
+    "luffy",
+    "themes"
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
@@ -100,6 +103,18 @@
         "row"
       ],
       "default": "stacked"
+    },
+    "theme": {
+      "type": "string",
+      "title": "Theme",
+      "description": "The pet a session starts with, by name: a built-in one (luffy, slime, duck, alien) or <name>.theme.json in your custom folder. /pet theme lists them and switches.",
+      "default": "luffy"
+    },
+    "customDir": {
+      "type": "string",
+      "title": "Custom folder",
+      "description": "An absolute path to the folder of your own <name>.theme.json files. Empty: ~/.claude/oxen-pet/themes, which updates never touch.",
+      "default": ""
     }
   }
 }

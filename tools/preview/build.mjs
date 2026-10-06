@@ -1,5 +1,5 @@
 // Writes tools/preview/preview.html: the same preview the preview_theme tool writes, for a theme file.
-// Run: node tools/preview/build.mjs [theme file], the default slime when no theme file is given. It prints the
+// Run: node tools/preview/build.mjs [theme file], the default pet, Luffy, when no theme file is given. It prints the
 // pet's resting frame and notes, or exits 1 when the theme has no sprite. Needs Node 22.18 or later.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { registerHooks } from 'node:module'
@@ -10,7 +10,7 @@ const plugin = new URL('../../plugins/oxen-pet/', import.meta.url)
 const { animate, readTheme, restingFrame } = await import(new URL('hooks/theme.ts', plugin).href)
 const { previewPage } = await import(new URL('hooks/preview.ts', plugin).href)
 
-const themeFile = process.argv[2] ?? new URL('assets/slime.json', plugin)
+const themeFile = process.argv[2] ?? new URL('assets/luffy.json', plugin)
 const read = readTheme(JSON.parse(readFileSync(themeFile, 'utf8')))
 if (read.errors) {
   console.error(`${themeFile}: ${read.errors.join(' ')}`)

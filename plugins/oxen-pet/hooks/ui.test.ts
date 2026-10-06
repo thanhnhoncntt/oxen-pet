@@ -30,7 +30,18 @@ function stubEngine(on: On, clock?: MockClock, use: SessionUsage = usage) {
   on('session.start', (_$, e) => e)
   on('session.usage', () => ({ value: use }))
   on('agent.list', () => ({ value: [] }))
-  on('fs.read', () => ({ value: JSON.stringify(BLOCK) }))
+  // A file the test wrote under `file:<path>` reads as written; any other reads as BLOCK. Each path read is kept under `reads`.
+  on('fs.read', (_$, e) => {
+    store.set('reads', [...((store.get('reads') as string[] | undefined) ?? []), e.path])
+    const file = store.get(`file:${e.path}`)
+    return file === undefined ? { value: JSON.stringify(BLOCK) } : { value: String(file) }
+  })
+  on('fs.exists', (_$, e) => ({ value: store.has(`file:${e.path}`) }))
+  on('fs.list', (_$, e) => {
+    const dir = `file:${String(e.path).replace(/\/$/, '')}/`
+    const names = [...store.keys()].filter(k => k.startsWith(dir) && !k.slice(dir.length).includes('/')).map(k => k.slice(dir.length))
+    return { value: names.map(name => ({ name, kind: 'file', size: 0, mtimeMs: 0, isLink: false })) } as never
+  })
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['engine hint'] }))
   on('ui.status', () => ({ value: undefined }))
   // The toasts shown, in order, under `toasts`.
@@ -110,7 +121,7 @@ test('set_theme draws and keeps a theme, notes what it repaired, and refuses one
   expect(String(noted.result)).toContain('stand, run, jump, think, cheer, and 18 faces')
 
   const reset = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: null })
-  expect(String(reset.result)).toContain('The slime is back')
+  expect(String(reset.result)).toContain('The default pet is back')
   expect(store.get('theme')).toBeUndefined()
 })
 
@@ -133,7 +144,7 @@ test('get_theme returns the kept theme, or the slime\'s when none is kept', asyn
 
   const slime = await $.tool.call({ tool: 'mcp__oxen-pet__get_theme' })
   expect(String(slime.result)).toContain('No theme is kept')
-  expect(String(slime.result)).toContain('"name":"block"')
+  expect(String(slime.result)).toContain('"name": "block"')
 
   await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: CAT })
   const kept = await $.tool.call({ tool: 'mcp__oxen-pet__get_theme' })
@@ -487,4 +498,68 @@ test('on the desktop the row layout lays the HUD\'s bars side by side too', { op
   const tree = await bandText($, 'desktop')
   expect(tree).toContain('"flexDirection":"row","alignSelf":"flex-start"')
   expect(tree).toContain(' │ ')
+})
+
+const ZORO = { ...BLOCK, name: 'Zoro', palette: { d: '#3fae4f' } }
+const PETS = '/home/me/pets'
+const run = (args: string) => ({ command: 'pet', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } }) as never
+
+test('with no theme kept or chosen, the session starts with Luffy, from the plugin\'s own assets', async ($, on) => {
+  const store = stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await bandText($)
+  expect(((store.get('reads') as string[]) ?? []).some(p => p.endsWith('/assets/luffy.json'))).toBe(true)
+})
+
+test('the Theme setting starts the session with a theme from the custom folder', { options: { theme: 'zoro', customDir: PETS } }, async ($, on) => {
+  const store = stubEngine(on)
+  store.set(`file:${PETS}/zoro.theme.json`, JSON.stringify(ZORO))
+  await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+  expect(await bandText($, 'desktop')).toContain('"alt":"Zoro, idle"')
+})
+
+test('/pet theme lists the pets, and /pet theme <name> puts one on screen and keeps it for later sessions', { options: { customDir: PETS } }, async ($, on) => {
+  const store = stubEngine(on)
+  stubPanes(on)
+  store.set(`file:${PETS}/zoro.theme.json`, JSON.stringify(ZORO))
+  await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+
+  const listed = await $.command.run(run('theme'))
+  expect(listed.text).toContain('Yours: zoro')
+  expect(listed.text).toContain(PETS)
+
+  const chosen = await $.command.run(run('theme zoro'))
+  expect(chosen.text).toContain('Zoro is on screen')
+  expect(store.get('chosen')).toBe('zoro')
+  expect(await bandText($, 'desktop')).toContain('"alt":"Zoro, idle"')
+
+  const missing = await $.command.run(run('theme nami'))
+  expect(missing.text).toContain('No theme named nami')
+  expect(store.get('chosen')).toBe('zoro')
+  const bad = await $.command.run(run('theme ../x'))
+  expect(bad.text).toContain('No theme named ../x')
+})
+
+test('a chosen theme replaces one set_theme kept, and set_theme null brings the default back', { options: { customDir: PETS } }, async ($, on) => {
+  const store = stubEngine(on)
+  stubPanes(on)
+  store.set(`file:${PETS}/zoro.theme.json`, JSON.stringify(ZORO))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: CAT })
+  await $.command.run(run('theme zoro'))
+  expect(store.get('theme')).toBeUndefined()
+
+  await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: CAT })
+  expect(store.get('chosen')).toBeUndefined()
+  const reset = await $.tool.call({ tool: 'mcp__oxen-pet__set_theme', theme: null })
+  expect(String(reset.result)).toContain('The default pet is back')
+  expect([store.get('theme'), store.get('chosen')]).toEqual([undefined, undefined])
+})
+
+test('a custom theme that no longer reads gives way to the default, with a toast', { options: { theme: 'broken', customDir: PETS } }, async ($, on) => {
+  const store = stubEngine(on)
+  store.set(`file:${PETS}/broken.theme.json`, '{ "sprite": ')
+  await $.session.start({ cwd: '/tmp', surface: 'desktop', isInteractive: true })
+  expect(await bandText($, 'desktop')).toContain('"alt":"block, idle"')
+  expect(((store.get('toasts') as string[]) ?? []).join()).toContain('broken')
 })

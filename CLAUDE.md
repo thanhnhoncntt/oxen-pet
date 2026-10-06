@@ -4,7 +4,7 @@ oxen-pet is a hardened fork of pixel-pet (see `SECURITY-AUDIT.md`), a Claude Cod
 
 Use these words in code, comments, docs, and UI, and no others for the same thing.
 
-- **pet**: what the mod draws. **slime**: the default pet, and its theme. **theme**: one JSON object with a pet's sprite and everything else it changes (props, minis, status lines, HUD, scene), in the format `skills/oxen-pet/FORMAT.md` documents; a theme file holds one. **sprite**: the one still drawing in a theme. **clip**: a loop of frames, one of stand, run, jump, think, cheer. **frame**: one picture of a clip, made from the sprite. **body**: a pet made ready to draw by `animate`, with every clip.
+- **pet**: what the mod draws. **luffy**: the default pet, and its theme, with a form per gear. **slime**: the first pet, kept built in. **custom folder**: where the user's own `<name>.theme.json` files live, outside the plugin's install folder (`custom.ts`). **theme**: one JSON object with a pet's sprite and everything else it changes (props, minis, status lines, HUD, scene), in the format `skills/oxen-pet/FORMAT.md` documents; a theme file holds one. **sprite**: the one still drawing in a theme. **clip**: a loop of frames, one of stand, run, jump, think, cheer. **frame**: one picture of a clip, made from the sprite. **body**: a pet made ready to draw by `animate`, with every clip.
 - **form**: how the pet looks while one mode plays, from the theme's `forms`: its own sprite fields over the pet's, with every clip made from them.
 - **mode**: what the pet is acting out (`idle`, `read`, `bash`, ...). One mode has one set of status lines and one line color. User-facing text calls a mode's animation a **motion**. **face**: one eye expression, one of the 18 in `pixels.ts`.
 - **status line**: the text beside the pet. **band**: the `AbovePrompt` area the pet and status line sit in. **target**: what a tool call works on (a file, pattern, command, host, or search query), which the status line names.
@@ -46,12 +46,12 @@ Use these words in code, comments, docs, and UI, and no others for the same thin
 A user who updates keeps three things the old version saved. Each must still load.
 
 - **Settings** in `pluginConfigs`. A new setting gets a `default` in `plugin.json` and a fallback in `readSettings`. Never make one required.
-- **The theme** in `$.store`. `readTheme` must read every theme an older version accepted.
+- **The theme** in `$.store`, the name `/pet theme` chose, and the user's custom folder. `readTheme` must read every theme an older version accepted, and the mod never writes to the custom folder.
 - **The anim state** in `$.state`, which survives a reload. `step` starts over idle on a mode it doesn't know, and a field added to `Anim` must work when missing.
 
 ## Decisions
 
-- All art is original. Do not add sprites, images, or fonts copied from elsewhere.
+- All art is drawn for this repo. Do not add sprites, images, or fonts copied from elsewhere, fan art included. The default Luffy is fan art of a character the repo does not own, drawn here by the owner's choice; keep README's notice that One Piece belongs to its owners and the repo is not affiliated.
 - The mod decorates around the chat: the band, the HUD, and the `/pet` pane. It does not restyle what Claude Code draws itself, such as tool rows, the spinner, or dialogs.
 - The shield may refuse a call, and only a Bash call Claude Code would run unasked whose command matches `guard.ts`. Keep it fail-closed on the user's answer and fail-open on the mod's own errors.
 - The desktop has no Raster: whatever the band or the pane draws on the terminal draws as `Svg` there. Keep a band's SVG under the element's 131072 characters (`DESKTOP_BAND_W`).

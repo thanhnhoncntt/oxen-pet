@@ -9,9 +9,9 @@ One entry point to change anything the mod draws: the pet, its props, its minis,
 
 Three tools do the work. Their full names end in `__get_theme`, `__preview_theme`, and `__set_theme`; from the marketplace they are `mcp__oxen-pet__get_theme`, `mcp__oxen-pet__preview_theme`, and `mcp__oxen-pet__set_theme`. When they are not listed, follow [Troubleshooting](#troubleshooting) and stop.
 
-- `get_theme` takes no input and returns the theme on screen: the one `set_theme` kept, or the slime's.
+- `get_theme` takes no input and returns the theme on screen: the one `set_theme` kept, or the one chosen by name (Luffy by default), and the user's custom themes folder.
 - `preview_theme` takes `theme` and `path`, and writes an HTML page of the theme. What is on screen stays as it is. `path` must be absolute, have no `..`, and name a file that starts with `oxen-pet-preview` and ends with `.html`; any other path is refused.
-- `set_theme` takes `theme`, `null` for the slime, or no `theme` for the last theme `preview_theme` drew in this session. It replaces the whole theme on screen, at once, and keeps it for later sessions.
+- `set_theme` takes `theme`, `null` for the default pet (Luffy, or the user's **Theme** setting), or no `theme` for the last theme `preview_theme` drew in this session. It replaces the whole theme on screen, at once, and keeps it for later sessions.
 
 Everything below is a default that makes a good pet. The user's idea wins: a pet with no eyes, a tall thin one, a wild palette. The tools draw nearly anything and return notes on what they repaired.
 
@@ -103,11 +103,13 @@ Example, a front-facing cat ([`assets/duck.json`](../../assets/duck.json) is a s
 5. Leave the rest of the sky clear. A filled background turns the band into a block of color over the user's terminal.
 6. Add every scene color to `palette`, in mid tones.
 
-**The slime back.** Call `set_theme` with `theme` set to `null`. Tell the user the slime is back. Stop.
+**The default pet back.** Call `set_theme` with `theme` set to `null`. Tell the user the default pet is back. Stop.
+
+**A built-in pet or a saved one by name.** Tell the user to run `/pet theme <name>` (`/pet theme` lists them: luffy, slime, duck, alien, and their own). It costs no tokens. Stop.
 
 ## 4. Preview it
 
-Preview every theme you drew or changed: the user has not seen it yet. A ready-made theme the user named as is (a theme file, a repo's `assets/alien.json`, the slime back) is already chosen: go to [step 6](#6-put-it-on-screen) and pass it as `theme`. Skip the preview of your own changes only when the user asks.
+Preview every theme you drew or changed: the user has not seen it yet. A ready-made theme the user named as is (a theme file, a repo's `assets/alien.json`, the default pet back) is already chosen: go to [step 6](#6-put-it-on-screen) and pass it as `theme`. Skip the preview of your own changes only when the user asks.
 
 Call `preview_theme` with `theme` and an absolute `path` in the temp folder, such as `/tmp/oxen-pet-preview-cat.html`.
 
@@ -128,7 +130,7 @@ Apply each request, such as bigger ears or a darker color, to the theme. Call `p
 
 ## 6. Put it on screen
 
-For an approved preview, call `set_theme` with `theme` left out, so it sets the last preview exactly as the user saw it. For a ready-made theme, pass it as `theme`, then say what changed on screen. Offer to save it as `<name>.theme.json` in the current directory, so it can be edited and shared later. Tell the user to ask for the slime back to undo.
+For an approved preview, call `set_theme` with `theme` left out, so it sets the last preview exactly as the user saw it. For a ready-made theme, pass it as `theme`, then say what changed on screen. Then save it with the Write tool as `<name>.theme.json` in the user's custom themes folder, which `get_theme` names (by default `~/.claude/oxen-pet/themes/`): updates never touch that folder, and `/pet theme <name>` brings the pet back any time, in any session. `<name>` is letters, digits, `-` and `_`. Tell the user to ask for the default pet back to undo.
 
 ## Settings
 
@@ -149,6 +151,8 @@ Options left out keep their values. The change applies after Claude Code restart
 | `targets` | `true`, `false` | The status line names the file, pattern, command, host, or search query. `false` suits a shared screen. |
 | `minis` | `true`, `false` | A mini behind the pet for each running subagent. |
 | `cacheTtl` | `1h`, `5m`, `off` | How long the HUD counts the prompt cache warm after a turn. |
+| `theme` | a theme name | The pet a session starts with: `luffy` (default), `slime`, `duck`, `alien`, or `<name>` for `<name>.theme.json` in the custom folder. |
+| `customDir` | an absolute path | The folder of the user's own themes. Empty: `~/.claude/oxen-pet/themes`. |
 | `hudLayout` | `stacked`, `row` | The HUD's bars one per line, or side by side in one line with a short detail each. |
 | `guard` | `true`, `false` | The shield: ask before a destructive Bash command runs unasked. With no one to answer, it is blocked. |
 | `boss` | `true`, `false` | A failed test run brings a bug boss into the band. |
@@ -163,5 +167,5 @@ Options left out keep their values. The change applies after Claude Code restart
 | An update changed nothing | An installed copy updates only when the plugin's version changes. Run `claude plugin marketplace update oxen-pet`, then `claude plugin update oxen-pet@oxen-pet`, and start a new session. |
 | The pet does not show | The VS Code chat panel, `claude -p`, and cloud sessions do not draw it. It shows in a terminal and in the Desktop app's Code tab. The HUD shows only in a terminal. |
 | A setting changed nothing | Settings apply after a restart. Start a new session. |
-| A toast says "your theme no longer reads", and the slime is back | The kept theme has no sprite left. Load the user's theme file again, or draw it again. |
+| A toast says a theme "does not read" or "no longer reads", and Luffy is back | The kept theme has no sprite left. Load the user's theme file again, or draw it again. |
 | The preview page does not open | Show the resting frame and the notes in chat, and give the user the path to open in a browser. |

@@ -7,8 +7,8 @@ test('no options give the defaults', () => {
 })
 
 test('each option sets its setting', () => {
-  expect(readSettings({ speed: 'fast', sleepAfter: 300, hud: false, statusLine: false, targets: false, minis: false, cacheTtl: '5m', guard: false, boss: false, hudLayout: 'row' })).toEqual({
-    pace: 1.6, sleepAfterMs: 300000, hud: false, statusLine: false, targets: false, minis: false, cacheTtlMin: 5, guard: false, boss: false, hudRow: true,
+  expect(readSettings({ speed: 'fast', sleepAfter: 300, hud: false, statusLine: false, targets: false, minis: false, cacheTtl: '5m', guard: false, boss: false, hudLayout: 'row', theme: 'zoro', customDir: '/srv/pets' })).toEqual({
+    pace: 1.6, sleepAfterMs: 300000, hud: false, statusLine: false, targets: false, minis: false, cacheTtlMin: 5, guard: false, boss: false, hudRow: true, theme: 'zoro', customDir: '/srv/pets',
   })
 })
 
@@ -37,4 +37,11 @@ test('the HUD stacks its bars unless the user lays them in a row', () => {
   expect(readSettings({}).hudRow).toBe(false)
   expect(readSettings({ hudLayout: 'row' }).hudRow).toBe(true)
   expect(readSettings({ hudLayout: 'sideways' }).hudRow).toBe(false)
+})
+
+test('the pet a session starts with is Luffy unless the user names another, and a name that is not one stays Luffy', () => {
+  expect(readSettings({}).theme).toBe('luffy')
+  expect(readSettings({ theme: ' zoro ' }).theme).toBe('zoro')
+  expect(readSettings({ theme: '../../etc/passwd' }).theme).toBe('luffy')
+  expect(readSettings({}).customDir).toBe('')
 })

@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Anim, Mode } from '../types'
 import { TICK_MS, fail, leapClipMs, step } from './anim'
+import { BUILT_IN, DEFAULT_THEME, customDirOf, isThemeName, themeFile, themeList, themeNames } from './custom'
 import { BOSS_W, bossAfter, bossAlt, bossOnScreen, drawBoss, isTestCommand, testOutcome } from './boss'
 import type { Boss } from './boss'
 import { GUARD_OPTIONS, guardLine, guardQuestion, riskOf, sizeOf } from './guard'
@@ -39,6 +40,7 @@ const BLOCKED = 'The user blocked this command with the oxen-pet shield. Ask the
 const UNANSWERED = 'Blocked by the oxen-pet shield: no one answered its question. To let destructive commands run unasked, turn off Shield in /plugin configure oxen-pet@oxen-pet.'
 
 const THEME_KEY = 'theme' // in $.store: the theme set_theme last took
+const CHOSEN_KEY = 'chosen' // in $.store: the theme /pet theme last put on screen, by name
 const OWN_TOOLS = 'mcp__oxen-pet__'
 // Literals, so `claude plugin validate` can read the hooks' matchers.
 const SET_THEME = 'mcp__oxen-pet__set_theme'
@@ -110,28 +112,59 @@ function themeReport(pet: Body, notes: string[]) {
   return `The mod made every clip and face from the sprite: ${made}.\n\nResting frame (@ is a pupil, * a cheek):\n${restingFrame(pet)}${noted}`
 }
 
-/** The default slime theme, from the plugin's own file. */
-async function slimeBody($: EngineInterface) {
-  const read = readTheme(JSON.parse(await $.fs.read(`${$.plugin.root}/assets/slime.json`)))
+/** The default pet, from the plugin's own file. */
+async function defaultBody($: EngineInterface) {
+  const read = readTheme(JSON.parse(await $.fs.read(`${$.plugin.root}/assets/${DEFAULT_THEME}.json`)))
   if (read.errors) {
-    throw new Error(`assets/slime.json: ${read.errors.join(' ')}`)
+    throw new Error(`assets/${DEFAULT_THEME}.json: ${read.errors.join(' ')}`)
   }
 
   return animate(read.theme)
 }
 
-/** The theme set_theme kept in an earlier session, else the slime. A kept theme this version cannot read gives way to the slime, with a toast. */
-async function keptBody($: EngineInterface) {
+/**
+ * A theme by name, as its file spells it: the custom folder's `<name>.theme.json` first, so the user's own wins over a
+ * built-in one of the same name, then the plugin's `assets/<name>.json`. Throws when neither is there or it is not JSON.
+ */
+async function namedTheme($: EngineInterface, name: string, dir: string | undefined): Promise<unknown> {
+  if (!isThemeName(name)) {
+    throw new Error(`No theme named ${name}.`)
+  }
+  if (dir !== undefined && (await $.fs.exists(themeFile(dir, name)).catch(() => false))) {
+    return JSON.parse(await $.fs.read(themeFile(dir, name)))
+  }
+  if ((BUILT_IN as readonly string[]).includes(name)) {
+    return JSON.parse(await $.fs.read(`${$.plugin.root}/assets/${name}.json`))
+  }
+  throw new Error(`No theme named ${name}.`)
+}
+
+/**
+ * The pet a session shows: the theme set_theme kept, else the one /pet theme chose, else the Theme setting's, else
+ * the default. One that no longer reads gives way to the next, with a toast.
+ */
+async function keptBody($: EngineInterface, setting: string, customDir: string) {
   const kept = await $.store.get(THEME_KEY)
   if (kept !== undefined) {
     const read = readTheme(kept)
     if (!read.errors) {
       return animate(read.theme)
     }
-    $.ui.toast(`oxen-pet: your theme no longer reads (${read.errors[0]}). Showing the slime.`)
+    $.ui.toast(`oxen-pet: your theme no longer reads (${read.errors[0]}). Showing ${DEFAULT_THEME}.`)
+  }
+  const chosen = await $.store.get(CHOSEN_KEY)
+  const name = typeof chosen === 'string' ? chosen : setting
+  try {
+    const read = readTheme(await namedTheme($, name, customDirOf($.plugin.root, customDir)))
+    if (read.errors) {
+      throw new Error(read.errors[0])
+    }
+    return animate(read.theme)
+  } catch (err) {
+    $.ui.toast(`oxen-pet: the ${name} theme does not read (${err instanceof Error ? err.message : String(err)}). Showing ${DEFAULT_THEME}.`)
   }
 
-  return slimeBody($)
+  return defaultBody($)
 }
 
 export const register: Register = (on, options) => {
@@ -195,23 +228,23 @@ export const register: Register = (on, options) => {
       await $.tool.register({
         name: 'set_theme',
         description:
-          'Sets the oxen-pet theme: the pet, its props, minis, status lines, HUD look, and scene, at once, kept for later sessions. `theme` is in the format the `oxen-pet:oxen-pet` skill describes, or null for the default slime. Leave `theme` out to set the last theme preview_theme drew in this session. Returns the resting frame and notes on anything repaired.',
+          'Sets the oxen-pet theme: the pet, its props, minis, status lines, HUD look, and scene, at once, kept for later sessions. `theme` is in the format the `oxen-pet:oxen-pet` skill describes, or null for the default pet. Leave `theme` out to set the last theme preview_theme drew in this session. Returns the resting frame and notes on anything repaired.',
         inputSchema: {
           type: 'object',
-          properties: { theme: { type: ['object', 'null'], description: 'The theme as a JSON object, null for the default slime, or left out for the last preview.' } },
+          properties: { theme: { type: ['object', 'null'], description: 'The theme as a JSON object, null for the default pet, or left out for the last preview.' } },
         },
       })
       await $.tool.register({
         name: 'get_theme',
         description:
-          'Returns the oxen-pet theme on screen: the one set_theme kept, or the default slime\'s. Start a change from it, so set_theme keeps everything the change leaves alone.',
+          'Returns the oxen-pet theme on screen: the one set_theme kept, or the one chosen by name (by default Luffy), and where the user\'s own themes folder is. Start a change from it, so set_theme keeps everything the change leaves alone.',
         inputSchema: { type: 'object', properties: {} },
       })
     } catch {
       // Without the tools the pet still draws; only changing the theme is missing.
     }
     try {
-      await $.command.register({ name: PET_COMMAND, description: 'oxen-pet: open or close the pane with what this session did', immediate: true })
+      await $.command.register({ name: PET_COMMAND, description: 'oxen-pet: open or close the session stats pane; /pet theme lists or switches pets', argumentHint: '[theme [name]]', immediate: true })
     } catch {
       // Without the command the pet and the HUD still draw; only the stats pane is missing.
     }
@@ -367,12 +400,17 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', { tool: GET_THEME }, async $ => {
+    const dir = customDirOf($.plugin.root, settings.customDir)
+    const folder = dir === undefined ? '' : `\n\nThe user's own themes go in ${dir} as <name>.theme.json, which updates never touch; /pet theme <name> puts one on screen.`
     const kept = await $.store.get(THEME_KEY)
-    if (kept === undefined) {
-      return { result: `No theme is kept, so the slime is on screen. Its theme:\n\n${await $.fs.read(`${$.plugin.root}/assets/slime.json`)}` }
+    if (kept !== undefined) {
+      return { result: `The theme set_theme kept:\n\n${JSON.stringify(kept, null, 2)}${folder}` }
     }
+    const chosen = await $.store.get(CHOSEN_KEY)
+    const name = typeof chosen === 'string' ? chosen : settings.theme
+    const theme = await namedTheme($, name, dir).catch(() => namedTheme($, DEFAULT_THEME, undefined))
 
-    return { result: `The theme set_theme kept:\n\n${JSON.stringify(kept, null, 2)}` }
+    return { result: `No theme is kept, so ${name} is on screen. Its theme:\n\n${JSON.stringify(theme, null, 2)}${folder}` }
   })
 
   on('tool.call', { tool: SET_THEME }, async ($, e) => {
@@ -383,16 +421,18 @@ export const register: Register = (on, options) => {
     const value = given === undefined ? previewed : given
     if (value === null) {
       await $.store.delete(THEME_KEY)
-      body = await slimeBody($)
+      await $.store.delete(CHOSEN_KEY)
+      body = await keptBody($, settings.theme, settings.customDir)
       $.ui.invalidate('ui.render')
 
-      return { result: 'The slime is back, for this session and later ones.' }
+      return { result: 'The default pet is back, for this session and later ones.' }
     }
     const read = readTheme(value)
     if (read.errors) {
       return { deny: `The theme was not set: ${read.errors.join(' ')}` }
     }
     await $.store.set(THEME_KEY, value)
+    await $.store.delete(CHOSEN_KEY)
     body = animate(read.theme)
     $.ui.invalidate('ui.render')
 
@@ -400,7 +440,32 @@ export const register: Register = (on, options) => {
   })
 
   // /pet opens the pane with what the session did, and closes it when it is open.
-  on('command.run', { command: PET_COMMAND }, async $ => {
+  on('command.run', { command: PET_COMMAND }, async ($, e) => {
+    // /pet theme lists the pets; /pet theme <name> puts one on screen, for this session and later ones.
+    const [sub, name] = e.args.trim().split(/\s+/)
+    if (sub === 'theme') {
+      const dir = customDirOf($.plugin.root, settings.customDir)
+      if (name === undefined) {
+        const own = dir === undefined ? [] : themeNames(await $.fs.list(dir).catch(() => []))
+        const kept = await $.store.get(THEME_KEY)
+        const chosen = await $.store.get(CHOSEN_KEY)
+        return { text: themeList(own, kept !== undefined ? undefined : typeof chosen === 'string' ? chosen : settings.theme, dir) }
+      }
+      let read: ReturnType<typeof readTheme>
+      try {
+        read = readTheme(await namedTheme($, name, dir))
+      } catch (err) {
+        return { text: `${err instanceof Error ? err.message : String(err)} Run /pet theme for the list.` }
+      }
+      if (read.errors) {
+        return { text: `The ${name} theme does not read: ${read.errors.join(' ')}` }
+      }
+      await $.store.set(CHOSEN_KEY, name)
+      await $.store.delete(THEME_KEY)
+      body = animate(read.theme)
+      $.ui.invalidate('ui.render')
+      return { text: `${read.theme.name} is on screen now, and stays for later sessions.` }
+    }
     if ((await $.ui.panes()).some(p => p.id === PANE_ID)) {
       await $.ui.close({ id: PANE_ID })
       return {}
@@ -420,7 +485,7 @@ export const register: Register = (on, options) => {
       return next(e)
     }
     if (!body) {
-      body = await keptBody($)
+      body = await keptBody($, settings.theme, settings.customDir)
     }
     const now = await $.clock.now()
     const rows = statsRows(stats, now, hud, settings.targets)
@@ -466,7 +531,7 @@ export const register: Register = (on, options) => {
       return next(e)
     }
     if (!body) {
-      body = await keptBody($)
+      body = await keptBody($, settings.theme, settings.customDir)
     }
     const cacheMin = cacheLeftMin(lastTurnEndAt, settings.cacheTtlMin, await $.clock.now())
     const rows = hudRows({ ...hud, cacheMin }, body.look.hud)
@@ -546,7 +611,7 @@ export const register: Register = (on, options) => {
       bodyColumns = e.props.bodyColumns
 
       if (!body) {
-        body = await keptBody($)
+        body = await keptBody($, settings.theme, settings.customDir)
       }
       const a = await read($, anim)
       const now = await $.clock.now()

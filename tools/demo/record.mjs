@@ -160,7 +160,7 @@ function minisAt(t) {
 
 // The pet tick by tick, as register.tsx's clock hook steps it, with each frame's screen.
 function play() {
-  const body = animate(readTheme(JSON.parse(readFileSync(new URL('assets/slime.json', plugin), 'utf8'))).theme)
+  const body = animate(readTheme(JSON.parse(readFileSync(new URL('assets/luffy.json', plugin), 'utf8'))).theme)
   let a = { mode: 'idle', since: 0, x: 0, dir: 1, tick: 0, target: '', working: false }
   let ops
   let boss
@@ -187,7 +187,7 @@ function play() {
       activeTarget: latest ? targetOf(latest.tool, latest.input) : '',
       lastToolAt: running.length ? t : (ended.at(-1)?.at[1] ?? -Infinity),
       room: Math.max(0, COLS - BODY_W - trailWidth(minisAt(t).length) - STATUS_ROOM - bossRoom),
-      obstacles: [], // the slime has no scene
+      obstacles: [], // the demo draws the band without its scene, as on a plain terminal
       trail: trailWidth(minisAt(t).length),
       guarding,
     }
