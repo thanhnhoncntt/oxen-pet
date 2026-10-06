@@ -1,5 +1,5 @@
 import { familyOf, weightsOf } from './provider'
-import { MAIN } from './record'
+import { COMPACTION_TYPE as COMPACTION, MAIN } from './record'
 import type { Group, MeterRecord, StepRecord, Tool, Usage } from './record'
 import type { TtlSetting } from './settings'
 
@@ -334,8 +334,6 @@ export type Totals = Usage & { steps: number }
 export type Weighed = Totals & { eq: number }
 export type SummaryOptions = { mainTtl: TtlSetting; subagentTtl: TtlSetting; coldTokens: number; outputWeight: number; cachedWeight?: number }
 
-/** The agent type of the totals of another tool's compactions, which are requests of their own. */
-export const COMPACTION = 'compaction'
 
 export type Summary = {
   sessions: number

@@ -1,4 +1,4 @@
-import { MAIN, addEvent, addStep, groupKey } from './record'
+import { MAIN, addCompaction, addEvent, addStep } from './record'
 import type { Collector, EventRecord, StepRecord, Usage } from './record'
 
 /**
@@ -287,17 +287,6 @@ export function codexLine(state: CodexState, line: string, o: { mode?: GuardMode
   }
 
   return ops
-}
-
-/** Adds a compaction's request to the session's totals, under the agent type `compaction` of its thread's role. */
-function addCompaction(c: Collector, thread: string, model: string, u: Usage) {
-  const key = groupKey({ thread, model, agentType: 'compaction' } as StepRecord)
-  const g = (c.groups[key] ??= { steps: 0, in: 0, out: 0, cr: 0, cw: 0 })
-  g.steps += 1
-  g.in += u.in
-  g.out += u.out
-  g.cr += u.cr
-  g.cw += u.cw
 }
 
 /** Adds one file's operations to its session's collector, in place: steps, events, compactions, and agent paths. */

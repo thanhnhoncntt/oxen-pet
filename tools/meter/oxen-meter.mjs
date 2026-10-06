@@ -10,6 +10,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { importCodex } from './lib/codex.mjs'
+import { importDevin } from './lib/devin.mjs'
 import { configOf, saltOf } from './lib/config.mjs'
 import { readText, statOf, writeGuarded } from './lib/files.mjs'
 import { analyze, dataPath, exportFile, project, report as reportModule, sessionFile, versionOf } from './lib/plugin.mjs'
@@ -29,7 +30,8 @@ function daysOf(arg, fallback) {
 /** Brings the data folder up to date with every tool the CLI reads. */
 export async function importAll(o) {
   const codex = await importCodex(o)
-  return { codex }
+  const devin = await importDevin(o)
+  return { codex, devin }
 }
 
 /** The session files written in the last `days`, and how many were emptied. */
@@ -62,12 +64,16 @@ export function readSessions(root, now, days) {
 
 const sessionData = f => ({ sid: f.sid, startedAt: f.startedAt, records: f.records, groups: f.groups, ...(f.tool !== undefined ? { tool: f.tool } : {}) })
 
+const sessions = n => `${n} session${n === 1 ? '' : 's'} updated`
+const busy = tool => `${tool}: another import is running; this reads what is already in.`
+
 function importLine(r) {
   const c = r.codex
-  if (c === undefined) {
-    return 'Codex: another import is running; this report reads what is already in.'
-  }
-  return `Codex: ${c.files} file${c.files === 1 ? '' : 's'} read (${(c.bytes / 1e6).toFixed(1)} MB), ${c.sessions.length} session${c.sessions.length === 1 ? '' : 's'} updated.`
+  const d = r.devin
+  const codex = c === undefined ? busy('Codex') : `Codex: ${c.files} file${c.files === 1 ? '' : 's'} read (${(c.bytes / 1e6).toFixed(1)} MB), ${sessions(c.sessions.length)}.`
+  const devin = d === undefined ? busy('Devin') : d.none ? '' : ` Devin: ${sessions(d.sessions.length)}.`
+
+  return `${codex}${devin}`
 }
 
 /** Runs one command; resolves to what it prints. */

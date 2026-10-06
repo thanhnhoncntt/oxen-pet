@@ -165,7 +165,7 @@ and it comes with this repo, or the clone Claude Code keeps of the marketplace (
 runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files and guards.
 
 - **Network, processes:** none. `node:fs`, `node:path`, `node:os`, `node:module` and `node:url` are all it imports,
-  with its own `lib/` and, by `import()`, the mod's `plugins/oxen-meter/hooks/*.ts`.
+  with its own `lib/` and, by `import()`, the mod's `plugins/oxen-meter/hooks/*.ts` and `node:sqlite` (for Devin).
 - **Environment:** the home folder alone, through `os.homedir()`; every path under it can be named by a flag instead.
 - **Reads:** `~/.claude/settings.json` (the oxen-meter options under `pluginConfigs`); Codex's
   `~/.codex/sessions/**/rollout-*.jsonl`, from where its last read stopped. Of each line it reads the head (time and
@@ -173,10 +173,15 @@ runs the mod's own modules (`lib/plugin.mjs`) for the parsing, analysis, files a
   hashed with the salt and dropped), the model and effort, each request's token counts, the rate limits, and a tool
   call's name, with the target of `spawn_agent`, `followup_task` and `send_message`. Prompts, answers, reasoning,
   tool input and output are never kept; a test fills every other field with a marker and checks no file holds it.
+  Devin's `~/.local/share/devin/cli/sessions.db`, opened read-only: the `sessions` row (id, working folder, times) and,
+  per node, only what SQLite's `json_extract` takes out of it (role, request id, model, times, label, token counts,
+  subagent id and profile, the tool calls' names), so a message's text never reaches the CLI. The same marker test
+  runs on a Devin database.
 - **Writes:** through `tools/meter/lib/files.mjs`, which runs the mod's `dataPathError` with the CLI's kinds and
   `dataTargetError` on `lstat`/`realpath`: `sessions/codex-<session id>.json`, `exports/…`, `state/salt.json`, and its
-  own `state/codex.json` (where each file's read stopped) and `state/codex.lock` (created exclusively, removed when the
-  import ends, taken over after a minute). Nothing else, and nothing through a symbolic link.
+  own `state/codex.json` and `state/devin.json` (where each file's read stopped, which Devin sessions it read), and
+  `state/codex.lock`, `state/devin.lock` (created exclusively, removed when the import ends, taken over after a
+  minute). Nothing else, and nothing through a symbolic link.
 - **The salt** in `state/salt.json` is shared with the mod, so a session keeps one hashed id in every export.
 
 ```bash

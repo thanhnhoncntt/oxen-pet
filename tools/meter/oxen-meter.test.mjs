@@ -154,3 +154,57 @@ test('the report counts a session by when it last ran, though the import wrote i
   assert.match((await run(['report', '7'], h.flags)).text, /No session in the last 7 days\./)
   assert.match((await run(['report', '30'], h.flags)).text, /1 session in the last 30 days/)
 })
+
+process.removeAllListeners('warning')
+const { DatabaseSync } = await import('node:sqlite')
+
+/** A Devin database as Devin CLI lays it out, with the columns the import reads, in `dir`. */
+function devinDb(dir, start) {
+  mkdirSync(dir, { recursive: true })
+  const db = new DatabaseSync(join(dir, 'sessions.db'))
+  db.exec(`create table sessions (id text primary key, working_directory text not null, backend_type text not null, model text not null, agent_mode text not null, created_at integer not null, last_activity_at integer not null, title text, main_chain_id integer, metadata text);
+    create table message_nodes (row_id integer primary key autoincrement, session_id text not null, node_id integer not null, parent_node_id integer, chat_message text not null, created_at integer not null, metadata text);`)
+  db.prepare('insert into sessions values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('hallowed-cone', '/Users/me/CANARY_DEVIN_PROJECT', 'windsurf', 'swe-2-high', 'bypass', start, start + 20 * MIN, 'CANARY_TITLE', 5, null)
+  const at = ms => new Date(start + ms).toISOString()
+  const ask = (model, ms, inp, cr, cw, extra = {}) => ({ role: 'assistant', content: 'CANARY_ANSWER', thinking: { thinking: 'CANARY_THINKING' }, tool_calls: [{ id: 'c1', name: 'exec', arguments: '{"command":"cat CANARY_FILE"}' }], metadata: { request_id: `req-${ms}`, generation_model: model, started_generation_at: at(ms), created_at: at(ms + 2000), metrics: { input_tokens: inp, cache_read_tokens: cr, cache_creation_tokens: cw, output_tokens: 100 }, ...extra } })
+  const nodes = [
+    { role: 'user', content: 'CANARY_PROMPT', metadata: { is_user_input: true, created_at: at(0) } },
+    ask('claude-fable-5-1-medium', 1000, 4, 0, 40000),
+    ask('claude-fable-5-1-medium', 285000, 4, 40000, 4, { query_label: 'cache_keepalive' }),
+    ask('claude-fable-5-1-medium', 300000, 4, 40000, 900),
+    ask('compactor', 600000, 41000, null, null),
+  ]
+  nodes.forEach((m, i) => db.prepare('insert into message_nodes (session_id, node_id, parent_node_id, chat_message, created_at) values (?, ?, ?, ?, ?)').run('hallowed-cone', i + 1, i === 0 ? null : i, JSON.stringify(m), start))
+  return { db, at, ask }
+}
+
+test('import reads a Devin session from its database: its steps, its keepalives and its compaction, and none of its text', async () => {
+  const h = home()
+  const { db } = devinDb(h.flags.devinHome, Date.now() - 3600000)
+  db.close()
+  const out = await run(['import'], h.flags)
+  assert.match(out.text, /Devin: 1 session updated\./)
+  const file = JSON.parse(readFileSync(join(h.data, 'sessions', 'devin-hallowed-cone.json'), 'utf8'))
+  assert.equal(file.tool, 'devin')
+  assert.deepEqual(Object.keys(file.groups).sort(), ['main|compaction|compactor', 'main||claude-fable-5-1-medium'])
+  assert.equal(file.groups['main||claude-fable-5-1-medium'].steps, 3)
+  assert.equal(file.records.filter(r => r.k === 'step' && r.keepalive).length, 1)
+  assert.doesNotMatch(everything(h), /CANARY|\/Users\/me/)
+  const report = (await run(['report'], h.flags)).text
+  assert.match(report, /Tools {6}codex 1 session, [\d.]+[KM] eq · devin 1 session/)
+  assert.match(report, /Keepalive  1 ping/)
+})
+
+test('a Devin session is read again only when Devin wrote to it since', async () => {
+  const h = home()
+  const start = Date.now() - 3600000
+  const { db, ask } = devinDb(h.flags.devinHome, start)
+  await run(['import'], h.flags)
+  assert.match((await run(['import'], h.flags)).text, /Devin: 0 sessions updated\./)
+  db.prepare('insert into message_nodes (session_id, node_id, parent_node_id, chat_message, created_at) values (?, ?, ?, ?, ?)').run('hallowed-cone', 6, 5, JSON.stringify(ask('claude-fable-5-1-medium', 900000, 4, 0, 9000)), start)
+  db.prepare('update sessions set last_activity_at = ? where id = ?').run(start + 30 * MIN, 'hallowed-cone')
+  db.close()
+  assert.match((await run(['import'], h.flags)).text, /Devin: 1 session updated\./)
+  const file = JSON.parse(readFileSync(join(h.data, 'sessions', 'devin-hallowed-cone.json'), 'utf8'))
+  assert.equal(file.groups['main||claude-fable-5-1-medium'].steps, 4)
+})

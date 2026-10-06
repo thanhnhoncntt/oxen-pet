@@ -155,6 +155,20 @@ export function addStep(c: Collector, r: StepRecord) {
   cap(c)
 }
 
+/** The agent type of a compaction's own request, which Codex and Devin report apart from the steps. */
+export const COMPACTION_TYPE = 'compaction'
+
+/** Adds a compaction's request to the session's totals, in place, under the agent type `compaction` of its thread's role. */
+export function addCompaction(c: Collector, thread: string, model: string, u: Usage) {
+  const g = (c.groups[`${thread === MAIN ? 'main' : 'subagent'}|${COMPACTION_TYPE}|${model}`] ??= { steps: 0, in: 0, out: 0, cr: 0, cw: 0 })
+  g.steps += 1
+  g.in += u.in
+  g.out += u.out
+  g.cr += u.cr
+  g.cw += u.cw
+  c.dirty = true
+}
+
 /** Notes the agent type an event names, in place: a subagent's start, or the Agent call that started it. */
 export function noteAgentType(c: Collector, r: EventRecord) {
   if (r.k === 'agent-start') {
