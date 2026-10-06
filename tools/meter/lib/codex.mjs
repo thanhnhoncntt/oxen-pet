@@ -18,6 +18,27 @@ async function sidOf(session, salt) {
   return `codex-${SESSION_ID.test(session) ? session : await project.shortHash(salt, session)}`
 }
 
+const timeOf = r => ('t' in r ? r.t : r.t0)
+
+/** Each thread's latest record time in a session's file, or none when it has no file yet. */
+async function latestOf(o, session, salt) {
+  const file = sessionFile.readSessionText(readText(dataPath.sessionPath(o.root, await sidOf(session, salt))) ?? '')
+  const latest = new Map()
+  for (const r of file?.records ?? []) {
+    latest.set(r.thread, Math.max(latest.get(r.thread) ?? -Infinity, timeOf(r)))
+  }
+  return latest
+}
+
+/**
+ * The operations of a file read from its start that its session's file does not hold yet: a rollout only grows, in
+ * time order, so a record of a thread no later than that thread's latest in the file was added before (the import's
+ * state was lost, or a later version reads files again).
+ */
+function newOnly(ops, latest) {
+  return ops.filter(op => op.op === 'meta' || timeOf(op.record) > (latest.get(op.record.thread) ?? -Infinity))
+}
+
 /** Adds `ops`, read from a session's files, to its session file: the file as it was, plus what is new. */
 async function writeSession(o, session, ops, salt) {
   const sid = await sidOf(session, salt)
@@ -86,8 +107,9 @@ export async function importCodex(o) {
       read += 1
       const session = parser.own?.session
       state.files[rel] = { size: st.size, offset: end, parser, ...(session !== undefined ? { session } : {}) }
-      if (session !== undefined && ops.length > 0) {
-        touched.set(session, [...(touched.get(session) ?? []), ...ops])
+      const kept = fresh && session !== undefined ? newOnly(ops, await latestOf(o, session, o.salt)) : ops
+      if (session !== undefined && kept.length > 0) {
+        touched.set(session, [...(touched.get(session) ?? []), ...kept])
       }
     }
     const sessions = []

@@ -51,8 +51,9 @@ export function hookCommand(node, cli, tool, flags = {}) {
 }
 
 /**
- * Codex's hooks for `command`: the prompt and follow-up guard, quick and synchronous; the imports at a turn's,
- * a subagent's and a session's end, in the background where Codex can.
+ * Codex's hooks for `command`: the prompt and follow-up guard, quick and synchronous; the imports at a turn's and a
+ * subagent's end in the background. Codex 0.160.1 runs a SessionEnd hook synchronously, for 3 seconds at most, and
+ * warns at every start of an entry that asks for more: the session's end gets what Stop left, in that time.
  */
 export function codexHooks(command) {
   const now = { type: 'command', command, timeout: 10 }
@@ -63,7 +64,7 @@ export function codexHooks(command) {
     PreToolUse: [{ matcher: '(followup_task|send_message)$', hooks: [now] }],
     Stop: [{ hooks: [later] }],
     SubagentStop: [{ hooks: [later] }],
-    SessionEnd: [{ hooks: [later] }],
+    SessionEnd: [{ hooks: [{ type: 'command', command, timeout: 3 }] }],
   }
 }
 

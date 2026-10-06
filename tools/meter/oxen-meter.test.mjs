@@ -294,6 +294,9 @@ test('setup prints the hooks it would add; with --write it adds them beside the 
   }
   assert.match(merged.hooks.Stop[0].hooks[0].command, /oxen-meter\.mjs" hook codex "--data"/)
   assert.equal(merged.hooks.PreToolUse[0].matcher, '(followup_task|send_message)$')
+  // Codex 0.160.1 runs SessionEnd synchronously and clamps it to 3 seconds, and warns of either at every start.
+  assert.deepEqual([merged.hooks.SessionEnd[0].hooks[0].async, merged.hooks.SessionEnd[0].hooks[0].timeout], [undefined, 3])
+  assert.equal(merged.hooks.Stop[0].hooks[0].async, true)
   assert.ok(existsSync(`${path}.oxen-meter.bak`))
 })
 
@@ -352,4 +355,20 @@ test('setup devin adds its hooks under "hooks" in Devin\'s config, keeping every
   assert.equal(merged.hooks.UserPromptSubmit.length, 1)
   assert.match(merged.hooks.Stop[0].hooks[0].command, /oxen-meter\.mjs" hook devin/)
   assert.ok(existsSync(`${path}.oxen-meter.bak`))
+})
+
+test('a rollout read again from its start, its import state lost, adds nothing it already added', async () => {
+  const h = home()
+  await run(['import'], h.flags)
+  const before = sessionOf(h)
+  const { unlinkSync } = await import('node:fs')
+  unlinkSync(join(h.data, 'state', 'codex.json'))
+  assert.match((await run(['import'], h.flags)).text, /Codex: 2 files read/)
+  const after = sessionOf(h)
+  assert.deepEqual(after.groups, before.groups)
+  assert.equal(after.records.length, before.records.length)
+  appendFileSync(h.rootFile, line(h.start + 70 * MIN + 5000, 'token_usage_record', usage(ROOT_ID, 't2', 'r9', 92000, 6400)) + line(h.start + 70 * MIN + 6000, 'event_msg', { type: 'task_complete', turn_id: 't2' }))
+  unlinkSync(join(h.data, 'state', 'codex.json'))
+  await run(['import'], h.flags)
+  assert.equal(sessionOf(h).groups['main||gpt-6.1-sol'].steps, before.groups['main||gpt-6.1-sol'].steps + 1)
 })
