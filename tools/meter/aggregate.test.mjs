@@ -1,6 +1,7 @@
 // Tests for aggregate.mjs: node --test tools/meter/aggregate.test.mjs (Node 22.18 or later).
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { registerHooks } from 'node:module'
@@ -97,4 +98,24 @@ test('the tools are added up apart, Codex by its gap curve, and the quota each p
   const md = markdown(r)
   assert.match(md, /\| codex gpt-6\.1 \|/)
   assert.match(md, /\| binh \| codex 7d \| \+5 \|/)
+})
+
+test('the team report makes its --out folder when it is not there yet, as the guide runs it', () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'oxen-meter-out-')), 'report')
+  const script = new URL('./aggregate.mjs', import.meta.url).pathname
+  const r = spawnSync(process.execPath, [script, '--out', out, exportsDir()], { encoding: 'utf8' })
+  assert.equal(r.status, 0, r.stderr)
+  assert.ok(existsSync(join(out, 'team-report.md')))
+  assert.ok(existsSync(join(out, 'team-report.json')))
+})
+
+test('cost is Claude Code\'s alone: a person with no Claude Code session shows none, not $0.00, and one person is a person', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'oxen-meter-aggregate-'))
+  writeFileSync(join(dir, 'oxen-meter-export-20261006-chi.json'), JSON.stringify(exportOf([{ file: codexFile('codex-s5', DAY2), id: 'eeee' }], { label: 'chi', version: '1.1.0', day: '2026-10-06', days: 30, settings: SETTINGS })))
+  const md = markdown(aggregate(readExports([dir]).exports, { settings: {} }))
+  assert.match(md, /\| chi \| codex \|.*\| — \|$/m)
+  assert.match(md, /\| Cost \| none: no Claude Code session \(Codex and Devin report no cost\) \|/)
+  const out = join(dir, 'report')
+  const r = spawnSync(process.execPath, [new URL('./aggregate.mjs', import.meta.url).pathname, '--out', out, dir], { encoding: 'utf8' })
+  assert.match(r.stdout, /^1 session from 1 person;/)
 })

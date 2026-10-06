@@ -4,7 +4,7 @@
 // Writes team-report.md and team-report.json in --out (the current folder by default). Claude Code, Codex and Devin
 // sessions all come in through the exports, each person's own.
 // Needs Node 22.18 or later: it reads the plugin's own analysis (plugins/oxen-meter/hooks/analyze.ts).
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -178,7 +178,7 @@ export function markdown(r) {
   const lines = [
     '# oxen-meter team report',
     '',
-    `From ${r.exports} export${r.exports === 1 ? '' : 's'} by ${r.people.length} ${r.people.length === 1 ? 'person' : 'people'}: ${t.sessions} sessions, ${r.from} to ${r.to}. Token equivalents weigh Claude's cache writes 1.25 (5m) or 2 (1h) and reads 0.1, Codex's and Devin's other cached input ${r.settings.cachedWeight}, output ${r.settings.outputWeight}. A cold resume sends at least ${fmtTokens(r.settings.coldTokens)} again: past its TTL in Claude Code, after 5 minutes or more in Codex and Devin.`,
+    `From ${r.exports} export${r.exports === 1 ? '' : 's'} by ${r.people.length} ${r.people.length === 1 ? 'person' : 'people'}: ${t.sessions} session${t.sessions === 1 ? '' : 's'}, ${r.from} to ${r.to}. Token equivalents weigh Claude's cache writes 1.25 (5m) or 2 (1h) and reads 0.1, Codex's and Devin's other cached input ${r.settings.cachedWeight}, output ${r.settings.outputWeight}. A cold resume sends at least ${fmtTokens(r.settings.coldTokens)} again: past its TTL in Claude Code, after 5 minutes or more in Codex and Devin.`,
     '',
     '## Summary',
     '',
@@ -188,12 +188,12 @@ export function markdown(r) {
       ['Cold resumes', `${t.cold}, ${fmtTokens(t.coldExtra)} eq beyond a read (${t.eq > 0 ? pct(t.coldExtra / t.eq) : '0%'} of all)`],
       ['Keepalive', t.keepalive.steps > 0 ? `${t.keepalive.steps} pings, ${fmtTokens(t.keepalive.eq)} eq` : 'none'],
       ['Compactions', `${t.compaction.count}${t.compaction.eq > 0 ? `, ${fmtTokens(t.compaction.eq)} eq` : ''}`],
-      ['Cost', `${usd(t.costUsd)}, as Claude Code's /cost totals it`],
+      ['Cost', r.byTool.some(x => x.tool === 'claude') ? `${usd(t.costUsd)}, Claude Code's sessions alone, as /cost totals them (Codex and Devin report no cost)` : 'none: no Claude Code session (Codex and Devin report no cost)'],
     ]),
     '',
     '## By person',
     '',
-    table(['Person', 'Tools', 'Sessions', 'Steps', 'Hit', 'Token eq.', 'Cold resumes', 'Cold eq.', 'Cost'], r.people.map(p => [p.label, p.tools.join(', '), p.sessions, p.steps, pct(p.hit), fmtTokens(p.eq), p.cold, fmtTokens(p.coldExtra), usd(p.costUsd)])),
+    table(['Person', 'Tools', 'Sessions', 'Steps', 'Hit', 'Token eq.', 'Cold resumes', 'Cold eq.', 'Cost'], r.people.map(p => [p.label, p.tools.join(', '), p.sessions, p.steps, pct(p.hit), fmtTokens(p.eq), p.cold, fmtTokens(p.coldExtra), p.tools.includes('claude') ? usd(p.costUsd) : '—'])),
     '',
     '## By tool',
     '',
@@ -281,9 +281,11 @@ function main(argv) {
     process.exit(1)
   }
   const report = aggregate(exports, opts)
+  mkdirSync(opts.out, { recursive: true })
   writeFileSync(join(opts.out, 'team-report.json'), `${JSON.stringify(report, null, 2)}\n`)
   writeFileSync(join(opts.out, 'team-report.md'), markdown(report))
-  console.log(`${report.team.sessions} sessions from ${report.people.length} people; wrote ${join(opts.out, 'team-report.md')} and team-report.json`)
+  const n = report.people.length
+  console.log(`${report.team.sessions} session${report.team.sessions === 1 ? '' : 's'} from ${n} ${n === 1 ? 'person' : 'people'}; wrote ${join(opts.out, 'team-report.md')} and team-report.json`)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

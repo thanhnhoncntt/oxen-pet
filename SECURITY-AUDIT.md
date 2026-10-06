@@ -152,7 +152,7 @@ from the session's start, no folder. The user sends the file on by hand; the met
 
 `tools/meter/aggregate.mjs` builds the team report from exports. It is a developer tool a person runs by hand, outside
 `plugins/oxen-meter`, so Claude Code never loads it. It reads the export files it is given and writes
-`team-report.md` and `team-report.json` in `--out`. No network, no process.
+`team-report.md` and `team-report.json` in `--out`, which it makes when it is not there yet. No network, no process.
 
 One hook can hold anything back: `session.send`, the cold resume guard. With **Cold resume guard** set to `ask`, and
 only for a message Claude sends (not a plugin's) to an agent whose cache likely went cold with at least **Cold resume
