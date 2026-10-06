@@ -1,12 +1,11 @@
-// Builds the team report from oxen-meter exports (/meter export), for whoever collects them. Never shipped.
-// Run: node tools/meter/aggregate.mjs [--out <folder>] [--codex <folder> | --no-codex] [--cold-tokens <n>]
-//        [--output-weight <n>] <export file or folder>...
-// Writes team-report.md and team-report.json in --out (the current folder by default). It also adds up this machine's
-// Codex sessions over the exports' days, from ~/.codex/sessions (the token counts only), unless --no-codex.
+// Builds the team report from oxen-meter exports (/meter export, or the CLI's export), for whoever collects them.
+// Run: node tools/meter/aggregate.mjs [--out <folder>] [--cold-tokens <n>] [--output-weight <n>] [--cached-weight <n>]
+//        <export file or folder>...
+// Writes team-report.md and team-report.json in --out (the current folder by default). Claude Code, Codex and Devin
+// sessions all come in through the exports, each person's own.
 // Needs Node 22.18 or later: it reads the plugin's own analysis (plugins/oxen-meter/hooks/analyze.ts).
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { registerHooks } from 'node:module'
-import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -16,8 +15,9 @@ const hooks = new URL('../../plugins/oxen-meter/hooks/', import.meta.url)
 const { coldResumes, handoffsOf, hitRate, summarize } = await import(new URL('analyze.ts', hooks).href)
 const { agentLabel, fmtDur, fmtTokens, shortModel } = await import(new URL('report.ts', hooks).href)
 const { EXPORT_KIND } = await import(new URL('exportFile.ts', hooks).href)
+const { TOOLS } = await import(new URL('record.ts', hooks).href)
 
-const TEAM_SETTINGS = { mainTtl: 'auto', subagentTtl: 'auto', coldTokens: 50000, outputWeight: 5 }
+const TEAM_SETTINGS = { mainTtl: 'auto', subagentTtl: 'auto', coldTokens: 50000, outputWeight: 5, cachedWeight: 0.1 }
 const TOP_COLD = 20
 const FLAG_KINDS = ['cold-resume', 'context-bloat', 'big-first-prefix', 'expensive-short']
 
@@ -39,48 +39,6 @@ export function readExports(paths) {
     }
   }
   return { exports, skipped }
-}
-
-/** This machine's Codex sessions from `fromDay` to `toDay` (YYYY-MM-DD): each session's last token count, added up. */
-export function readCodex(dir, fromDay, toDay) {
-  if (!existsSync(dir)) {
-    return undefined
-  }
-  const total = { sessions: 0, input: 0, cached: 0, output: 0 }
-  for (const y of readdirSync(dir).filter(n => /^\d{4}$/.test(n))) {
-    for (const m of readdirSync(join(dir, y)).filter(n => /^\d{2}$/.test(n))) {
-      for (const d of readdirSync(join(dir, y, m)).filter(n => /^\d{2}$/.test(n))) {
-        const day = `${y}-${m}-${d}`
-        if (day < fromDay || day > toDay) {
-          continue
-        }
-        for (const f of readdirSync(join(dir, y, m, d)).filter(n => n.startsWith('rollout-') && n.endsWith('.jsonl'))) {
-          let last
-          for (const line of readFileSync(join(dir, y, m, d, f), 'utf8').split('\n')) {
-            // Only the token counts are read; every other line, the prompts and code among them, is passed over.
-            if (!line.includes('"token_count"')) {
-              continue
-            }
-            try {
-              const usage = JSON.parse(line)?.payload?.info?.total_token_usage
-              if (usage) {
-                last = usage
-              }
-            } catch {
-              // A line cut short is no count.
-            }
-          }
-          if (last) {
-            total.sessions += 1
-            total.input += last.input_tokens ?? 0
-            total.cached += last.cached_input_tokens ?? 0
-            total.output += last.output_tokens ?? 0
-          }
-        }
-      }
-    }
-  }
-  return total
 }
 
 /** The Monday of `day`'s week, YYYY-MM-DD. */
@@ -111,7 +69,7 @@ function sessionsOf(exports) {
     day: s.startedDay,
     costUsd: s.costUsd ?? 0,
     timings: s.timings ?? {},
-    data: { sid: `${s.label}/${s.id}`, startedAt: 0, records: s.records ?? [], groups: s.groups ?? {} },
+    data: { sid: `${s.label}/${s.id}`, startedAt: 0, records: s.records ?? [], groups: s.groups ?? {}, ...(s.tool !== undefined ? { tool: s.tool } : {}) },
   }))
 }
 
@@ -127,6 +85,8 @@ export function aggregate(exports, o = {}) {
     const handoffs = own.flatMap(s => handoffsOf(s.data.records))
     return {
       label,
+      tools: TOOLS.filter(t => sum.byTool[t] !== undefined),
+      quota: sum.quota,
       sessions: own.length,
       steps: sum.totals.steps,
       hit: hitRate(sum.totals),
@@ -146,10 +106,10 @@ export function aggregate(exports, o = {}) {
   }).sort((a, b) => b.eq - a.eq)
   const coldTop = sessions
     .flatMap(s =>
-      coldResumes(s.data.records, ttlMin, settings.coldTokens).map(c => ({
+      coldResumes(s.data.records, ttlMin, settings.coldTokens, { tool: s.data.tool, cachedWeight: settings.cachedWeight }).map(c => ({
         label: s.label,
         day: s.day,
-        thread: c.role === 'main' ? (c.model === '' ? 'main (resumed)' : 'main') : agentLabel(c.thread, c.agentType),
+        thread: `${c.tool !== undefined ? `${c.tool} ` : ''}${c.role === 'main' ? (c.model === '' ? 'main (resumed)' : 'main') : agentLabel(c.thread, c.agentType)}`,
         model: c.model,
         idleMs: c.gapMs,
         cw: c.cw,
@@ -175,26 +135,31 @@ export function aggregate(exports, o = {}) {
   const days = sessions.map(s => s.day).sort()
   const from = days[0] ?? ''
   const to = [...exports.map(e => e.day)].sort().at(-1) ?? from
-  const codex = o.codexDir === false || from === '' ? undefined : readCodex(o.codexDir ?? join(homedir(), '.codex', 'sessions'), from, to)
 
   return {
     exports: exports.length,
     from,
     to,
     settings,
-    team: { sessions: sessions.length, steps: team.totals.steps, hit: hitRate(team.totals), eq: team.eq, mainEq: team.byRole.main.eq, subagentEq: team.byRole.subagent.eq, cold: team.cold.length, coldExtra: team.cold.reduce((n, c) => n + c.extra, 0), costUsd: sessions.reduce((n, s) => n + s.costUsd, 0) },
+    team: { sessions: sessions.length, steps: team.totals.steps, hit: hitRate(team.totals), eq: team.eq, mainEq: team.byRole.main.eq, subagentEq: team.byRole.subagent.eq, cold: team.cold.length, coldExtra: team.cold.reduce((n, c) => n + c.extra, 0), costUsd: sessions.reduce((n, s) => n + s.costUsd, 0), keepalive: team.keepalive, compaction: team.compaction },
     people,
+    byTool: TOOLS.flatMap(tool => {
+      const g = team.byTool[tool]
+      return g === undefined ? [] : [{ tool, sessions: g.sessions, steps: g.steps, hit: hitRate(g), eq: g.eq, share: team.eq > 0 ? g.eq / team.eq : 0 }]
+    }),
     byAgentType: byEq(team.byAgentType).map(([type, g]) => ({ type, steps: g.steps, hit: hitRate(g), eq: g.eq, share: team.eq > 0 ? g.eq / team.eq : 0 })),
     byModel: byEq(team.byModel).map(([model, g]) => ({ model, steps: g.steps, hit: hitRate(g), eq: g.eq, share: team.eq > 0 ? g.eq / team.eq : 0 })),
     coldTop,
     ttl: team.ttl,
+    gaps: team.gaps,
     weeks,
     hooks: Object.fromEntries(Object.entries(hooks).map(([hook, h]) => [hook, { count: h.count, meanMs: h.count > 0 ? h.totalMs / h.count : 0, maxMs: h.maxMs }])),
-    ...(codex ? { codex } : {}),
   }
 }
 
 const pct = n => `${Math.round(n * 100)}%`
+const windowName = min => (min % 1440 === 0 ? `${min / 1440}d` : min % 60 === 0 ? `${min / 60}h` : `${min}m`)
+const spanOf = b => (b.toMin === undefined ? (b.fromMin >= 60 ? `${b.fromMin / 60}h+` : `${b.fromMin}m+`) : b.toMin <= 60 ? `${b.fromMin}–${b.toMin}m` : `${b.fromMin / 60}–${b.toMin / 60}h`)
 const usd = n => `$${n.toFixed(2)}`
 const ttlName = min => (min >= 60 ? '1h' : '5m')
 const row = cells => `| ${cells.join(' | ')} |`
@@ -213,7 +178,7 @@ export function markdown(r) {
   const lines = [
     '# oxen-meter team report',
     '',
-    `From ${r.exports} export${r.exports === 1 ? '' : 's'} by ${r.people.length} ${r.people.length === 1 ? 'person' : 'people'}: ${t.sessions} sessions, ${r.from} to ${r.to}. Token equivalents weigh cache writes 1.25 (5m) or 2 (1h), reads 0.1, output ${r.settings.outputWeight}; a cold resume writes at least ${fmtTokens(r.settings.coldTokens)} again past its TTL.`,
+    `From ${r.exports} export${r.exports === 1 ? '' : 's'} by ${r.people.length} ${r.people.length === 1 ? 'person' : 'people'}: ${t.sessions} sessions, ${r.from} to ${r.to}. Token equivalents weigh Claude's cache writes 1.25 (5m) or 2 (1h) and reads 0.1, Codex's and Devin's other cached input ${r.settings.cachedWeight}, output ${r.settings.outputWeight}. A cold resume sends at least ${fmtTokens(r.settings.coldTokens)} again: past its TTL in Claude Code, after 5 minutes or more in Codex and Devin.`,
     '',
     '## Summary',
     '',
@@ -221,12 +186,18 @@ export function markdown(r) {
       ['Hit rate', pct(t.hit)],
       ['Token equivalent', `${fmtTokens(t.eq)} (main ${fmtTokens(t.mainEq)}, subagent ${fmtTokens(t.subagentEq)})`],
       ['Cold resumes', `${t.cold}, ${fmtTokens(t.coldExtra)} eq beyond a read (${t.eq > 0 ? pct(t.coldExtra / t.eq) : '0%'} of all)`],
-      ['Cost', `${usd(t.costUsd)}, as /cost totals it`],
+      ['Keepalive', t.keepalive.steps > 0 ? `${t.keepalive.steps} pings, ${fmtTokens(t.keepalive.eq)} eq` : 'none'],
+      ['Compactions', `${t.compaction.count}${t.compaction.eq > 0 ? `, ${fmtTokens(t.compaction.eq)} eq` : ''}`],
+      ['Cost', `${usd(t.costUsd)}, as Claude Code's /cost totals it`],
     ]),
     '',
     '## By person',
     '',
-    table(['Person', 'Sessions', 'Steps', 'Hit', 'Token eq.', 'Cold resumes', 'Cold eq.', 'Cost'], r.people.map(p => [p.label, p.sessions, p.steps, pct(p.hit), fmtTokens(p.eq), p.cold, fmtTokens(p.coldExtra), usd(p.costUsd)])),
+    table(['Person', 'Tools', 'Sessions', 'Steps', 'Hit', 'Token eq.', 'Cold resumes', 'Cold eq.', 'Cost'], r.people.map(p => [p.label, p.tools.join(', '), p.sessions, p.steps, pct(p.hit), fmtTokens(p.eq), p.cold, fmtTokens(p.coldExtra), usd(p.costUsd)])),
+    '',
+    '## By tool',
+    '',
+    table(['Tool', 'Sessions', 'Steps', 'Hit', 'Token eq.', 'Share'], r.byTool.map(x => [x.tool, x.sessions, x.steps, pct(x.hit), fmtTokens(x.eq), pct(x.share)])),
     '',
     '## By agent type',
     '',
@@ -250,6 +221,25 @@ export function markdown(r) {
     '',
     'A warm sample read its context back after a gap; a cold one wrote it again. Measured TTLs come from Claude Code (an Agent call\'s 5m/1h cache writes, a model switch).',
     '',
+    '## Cache after a gap',
+    '',
+    Object.keys(r.gaps).length === 0
+      ? 'No Codex or Devin sample.'
+      : table(['Tool and model', ...r.gaps[Object.keys(r.gaps)[0]].map(spanOf)], Object.entries(r.gaps).map(([key, curve]) => [key.replace('|', ' '), ...curve.map(b => (b.warm + b.cold > 0 ? `${b.warm}/${b.warm + b.cold}` : ''))])),
+    '',
+    'Codex and Devin have no TTL the meter can rely on: each cell is the samples that read their cache back over all the samples, by how long the thread sat.',
+    '',
+    '## Quota',
+    '',
+    r.people.every(p => Object.keys(p.quota).length === 0)
+      ? 'No rate-limit reading.'
+      : table(['Person', 'Window', 'Points used'], r.people.flatMap(p => Object.entries(p.quota).map(([key, points]) => {
+        const [tool, windowMin] = key.split('|')
+        return [p.label, `${tool} ${windowName(Number(windowMin))}`, `+${Math.round(points * 10) / 10}`]
+      }))),
+    '',
+    'Points of each rate-limit window that moved while the person\'s sessions ran: each rise between readings at most an hour apart. Use outside the sessions in that hour counts too.',
+    '',
     '## Weekly trend',
     '',
     table(['Week of', 'Sessions', 'Steps', 'Hit', 'Token eq.', 'Cold resumes'], r.weeks.map(w => [w.week, w.sessions, w.steps, pct(w.hit), fmtTokens(w.eq), w.cold])),
@@ -266,27 +256,22 @@ export function markdown(r) {
     '',
     table(['Hook', 'Calls', 'Mean', 'Slowest'], Object.entries(r.hooks).map(([hook, h]) => [hook, h.count, `${h.meanMs.toFixed(2)} ms`, `${h.maxMs.toFixed(2)} ms`])),
   ]
-  if (r.codex) {
-    const c = r.codex
-    lines.push('', '## Codex (this machine)', '', table(['Sessions', 'Input', 'Cached input', 'Cache hit', 'Output'], [[c.sessions, fmtTokens(c.input), fmtTokens(c.cached), c.input > 0 ? pct(c.cached / c.input) : '0%', fmtTokens(c.output)]]))
-  }
   return `${lines.join('\n')}\n`
 }
 
 function main(argv) {
-  const opts = { out: '.', codexDir: undefined, settings: {} }
+  const opts = { out: '.', settings: {} }
   const paths = []
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--out') opts.out = argv[++i]
-    else if (a === '--codex') opts.codexDir = argv[++i]
-    else if (a === '--no-codex') opts.codexDir = false
     else if (a === '--cold-tokens') opts.settings.coldTokens = Number(argv[++i])
+    else if (a === '--cached-weight') opts.settings.cachedWeight = Number(argv[++i])
     else if (a === '--output-weight') opts.settings.outputWeight = Number(argv[++i])
     else paths.push(a)
   }
   if (paths.length === 0) {
-    console.error('usage: node tools/meter/aggregate.mjs [--out <folder>] [--codex <folder> | --no-codex] [--cold-tokens <n>] [--output-weight <n>] <export file or folder>...')
+    console.error('usage: node tools/meter/aggregate.mjs [--out <folder>] [--cold-tokens <n>] [--output-weight <n>] [--cached-weight <n>] <export file or folder>...')
     process.exit(1)
   }
   const { exports, skipped } = readExports(paths)

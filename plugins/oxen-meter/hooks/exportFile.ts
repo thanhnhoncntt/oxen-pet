@@ -1,7 +1,7 @@
 import { summarize } from './analyze'
 import type { Summary, SummaryOptions } from './analyze'
 import { MAIN } from './record'
-import type { Group, MeterRecord } from './record'
+import type { Group, MeterRecord, Tool } from './record'
 import type { SessionFile } from './sessionFile'
 import type { TimingSummary } from './timing'
 
@@ -18,6 +18,7 @@ export const MAX_EXPORT_BYTES = 3.5 * 1024 * 1024
 
 export type ExportSession = {
   id: string
+  tool?: Tool // Codex or Devin; none for Claude Code
   project: string
   startedDay: string // YYYY-MM-DD, UTC
   costUsd?: number
@@ -88,6 +89,7 @@ export function exportOf(sessions: readonly { file: SessionFile; id: string }[],
     .sort((a, b) => a.file.startedAt - b.file.startedAt)
     .map(({ file, id }): ExportSession => ({
       id,
+      ...(file.tool !== undefined && file.tool !== 'claude' ? { tool: file.tool } : {}),
       project: file.project,
       startedDay: dayOf(file.startedAt),
       ...(file.costUsd !== undefined ? { costUsd: file.costUsd } : {}),
@@ -97,7 +99,7 @@ export function exportOf(sessions: readonly { file: SessionFile; id: string }[],
       records: anonymizeRecords(file.records, file.startedAt),
     }))
   const summary = summarize(
-    out.map(s => ({ sid: s.id, startedAt: 0, records: s.records ?? [], groups: s.groups })),
+    out.map(s => ({ sid: s.id, startedAt: 0, records: s.records ?? [], groups: s.groups, ...(s.tool !== undefined ? { tool: s.tool } : {}) })),
     o.settings,
   )
 

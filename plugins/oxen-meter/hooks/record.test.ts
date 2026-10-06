@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { DROP_CHUNK, MAIN, MAX_RECORDS, addEvent, addStep, agentCallOf, gapOf, newCollector, stepRecordOf } from './record'
+import { DROP_CHUNK, MAIN, MAX_RECORDS, addEvent, addStep, agentCallOf, claudeQuota, gapOf, newCollector, quotaRecordsOf, stepRecordOf } from './record'
+import type { MeterRecord } from './record'
 
 const USAGE = { input_tokens: 12, output_tokens: 300, cache_read_input_tokens: 40000, cache_creation_input_tokens: 2000, model: 'claude-opus-5-5' }
 const STEP = { turnId: 't1', index: 0, model: 'claude-opus-5-5', effort: 'high' as const, messageCount: 9 }
@@ -117,4 +118,18 @@ test('a background Agent call records its launch with no TTL, and a teammate its
 test('an Agent call that failed or answered oddly records only that it happened', () => {
   expect(agentCallOf(undefined, 1, 2, MAIN)).toEqual([{ k: 'agent-call', t0: 1, t1: 2, thread: MAIN, status: 'failed' }])
   expect(agentCallOf('text', 1, 2, MAIN)).toEqual([{ k: 'agent-call', t0: 1, t1: 2, thread: MAIN, status: 'unknown' }])
+})
+
+test('Claude Code\'s rate limits become quota readings: the 5-hour and 7-day windows, with when each resets', () => {
+  expect(claudeQuota([
+    { kind: 'five_hour', percentUsed: 23.5, resetsAt: '2026-10-06T12:00:00Z' },
+    { kind: 'seven_day', percentUsed: 7 },
+    { kind: 'spend_limit', percentUsed: 40 },
+  ])).toEqual([{ windowMin: 300, used: 23.5, resetsAt: Date.UTC(2026, 9, 6, 12) }, { windowMin: 10080, used: 7 }])
+})
+
+test('a quota reading is recorded only when its window moved since the last record of it', () => {
+  const records: MeterRecord[] = [{ k: 'quota', t: 1, thread: MAIN, windowMin: 10080, used: 50, resetsAt: 9 }, { k: 'quota', t: 2, thread: MAIN, windowMin: 300, used: 10 }]
+  expect(quotaRecordsOf(records, 5, MAIN, [{ windowMin: 10080, used: 50, resetsAt: 9 }, { windowMin: 300, used: 12 }])).toEqual([{ k: 'quota', t: 5, thread: MAIN, windowMin: 300, used: 12 }])
+  expect(quotaRecordsOf([], 5, MAIN, [{ windowMin: 10080, used: 3 }])).toEqual([{ k: 'quota', t: 5, thread: MAIN, windowMin: 10080, used: 3 }])
 })

@@ -84,6 +84,8 @@ Run `/plugin configure oxen-meter@oxen-pet`. Every setting has a default.
 | Output weight | `5` | What one output token weighs against one uncached input token in the token equivalent. |
 | Keep sessions (days) | `30` | Session files older than this are emptied (below). |
 | Data folder | empty | Where sessions and exports go. Empty: `oxen-meter` in your `.claude` folder. |
+| Cached input weight (Codex, Devin) | `0.1` | What a cached input token of a model with no cache writes (OpenAI, SWE) weighs against an uncached one. |
+| Cold after (Codex, Devin) | `60` | Minutes a Codex or Devin thread may sit before the CLI's hooks warn its cache is likely gone. |
 
 Settings apply after Claude Code restarts.
 
@@ -125,10 +127,9 @@ node tools/meter/aggregate.mjs --out report/ path/to/exports/
 ```
 
 It writes `report/team-report.md` and `team-report.json`: the team's summary; one row per person (by their label),
-agent type and model; the top 20 cold resumes; each role's TTL with its samples; a row per week; the flags and
-handoffs per person; the meter's own hook timing. It also adds up the Codex sessions on that machine over the same
-days, from `~/.codex/sessions`, reading their token counts only (`--no-codex` to skip, `--codex <folder>` for another
-folder). `--cold-tokens` and `--output-weight` set the team's thresholds.
+tool, agent type and model; the top 20 cold resumes; each role's TTL with its samples; the Codex and Devin caches by
+gap; the quota each person used; a row per week; the flags and handoffs per person; the meter's own hook timing.
+`--cold-tokens`, `--output-weight` and `--cached-weight` set the team's thresholds.
 
 ## What it records, and what it does not
 
@@ -137,9 +138,10 @@ model and effort, the four token counts, the context size, the gap since the thr
 count, the names of the tools it asked for, and why it stopped. Around them: a subagent's start and stop; an Agent
 call's agent, type, model, total tokens and cache split; a Codex call's sub-command (`task`, `review`, `exec`), times,
 and whether it ran in the background or failed; a count of commits and pull requests; a compaction's sizes; who a
-message to an agent went to, and what the guard did; a resumed session's idle time and context; reported TTLs. For the
-session: its id, the project as a salted hash, its start, its cost as `/cost` totals it, the meter's version and
-settings, and how long the meter's own hooks took.
+message to an agent went to, and what the guard did; a resumed session's idle time and context; reported TTLs; each
+rate-limit reading that moved (its window's length, how much of it is used, when it resets). For the session: its id,
+the tool it ran in, the project as a salted hash, its start, its cost as `/cost` totals it, the meter's version and
+settings, and how long the meter's own hooks took. A Devin step sent only to keep the cache warm is marked as such.
 
 Never recorded: prompts, answers, thinking, a tool's input or output, file names or paths, commands, message text,
 environment variables. The meter makes no network request and starts no process.

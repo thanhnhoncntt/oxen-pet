@@ -1,12 +1,12 @@
 // Tests for aggregate.mjs: node --test tools/meter/aggregate.test.mjs (Node 22.18 or later).
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { registerHooks } from 'node:module'
 import { test } from 'node:test'
 
-import { aggregate, markdown, readCodex, readExports } from './aggregate.mjs'
+import { aggregate, markdown, readExports } from './aggregate.mjs'
 
 registerHooks({ resolve: (spec, ctx, next) => next(/^\.\.?\//.test(spec) && !/\.[a-z]+$/.test(spec) ? `${spec}.ts` : spec, ctx) })
 const { exportOf } = await import(new URL('../../plugins/oxen-meter/hooks/exportFile.ts', import.meta.url).href)
@@ -34,6 +34,15 @@ function sessionFile(sid, startedAt, cold) {
   return { v: 1, sid, project: 'p', startedAt, savedAt: startedAt, version: '1.0.0', settings: SETTINGS, costUsd: 1.25, dropped: 0, groups, names: {}, timings: { 'turn.step': { count: 10, meanMs: 0.1, p95Ms: 0.2, maxMs: 0.5 } }, records }
 }
 
+/** A Codex session file: no cache writes; its main thread sent its context again in full after 90 minutes. */
+function codexFile(sid, startedAt) {
+  const s = (at, u) => ({ k: 'step', t0: startedAt + at * MIN, t1: startedAt + at * MIN + 1000, turn: 'turn', idx: 0, thread: 'main', model: 'gpt-6.1-sol', in: u.in, out: 500, cr: u.cr, cw: 0, ctx: u.in + u.cr, msgs: 0, tools: [] })
+  const q = (at, used) => ({ k: 'quota', t: startedAt + at * MIN, thread: 'main', windowMin: 10080, used })
+  const records = [s(0, { in: 80 * K, cr: 0 }), q(0, 40), s(10, { in: 2 * K, cr: 80 * K }), q(10, 42), s(100, { in: 76 * K, cr: 6.4 * K }), q(100, 43), q(105, 46)]
+  const groups = { 'main||gpt-6.1-sol': { steps: 3, in: 158 * K, out: 1500, cr: 86.4 * K, cw: 0 } }
+  return { v: 1, sid, tool: 'codex', project: 'p', startedAt, savedAt: startedAt, version: '1.1.0', settings: SETTINGS, dropped: 0, groups, names: {}, timings: {}, records }
+}
+
 const DAY1 = Date.UTC(2026, 8, 29, 9) // a Tuesday
 const DAY2 = Date.UTC(2026, 9, 6, 9) // the next Tuesday
 
@@ -42,7 +51,7 @@ function exportsDir() {
   const write = (name, label, sessions) =>
     writeFileSync(join(dir, name), JSON.stringify(exportOf(sessions, { label, version: '1.0.0', day: '2026-10-06', days: 30, settings: SETTINGS })))
   write('oxen-meter-export-20261006-an.json', 'an', [{ file: sessionFile('s1', DAY1, true), id: 'aaaa' }, { file: sessionFile('s2', DAY2, false), id: 'bbbb' }])
-  write('oxen-meter-export-20261006-binh.json', 'binh', [{ file: sessionFile('s3', DAY2, false), id: 'cccc' }])
+  write('oxen-meter-export-20261006-binh.json', 'binh', [{ file: sessionFile('s3', DAY2, false), id: 'cccc' }, { file: codexFile('codex-s4', DAY2), id: 'dddd' }])
   writeFileSync(join(dir, 'notes.json'), '{"hello":1}')
   return dir
 }
@@ -57,36 +66,35 @@ test('the exports in a folder are read, and a file that is not one is named and 
 test('the report has each person, each agent type and model, the cold resumes, the TTLs and a row a week', () => {
   const { exports } = readExports([exportsDir()])
   const r = aggregate(exports, {})
-  assert.deepEqual(r.people.map(p => [p.label, p.sessions, p.cold]), [['an', 2, 1], ['binh', 1, 0]])
+  assert.deepEqual(r.people.map(p => [p.label, p.sessions, p.cold]), [['an', 2, 1], ['binh', 2, 1]])
   assert.deepEqual(r.byAgentType.map(a => a.type), ['Explore', 'main'])
-  assert.deepEqual(r.byModel.map(m => m.model), ['claude-sonnet-5-5', 'claude-opus-5-5'])
-  assert.equal(r.coldTop.length, 1)
+  assert.deepEqual(r.byModel.map(m => m.model), ['claude-sonnet-5-5', 'claude-opus-5-5', 'gpt-6.1-sol'])
+  assert.equal(r.coldTop.length, 2)
   assert.deepEqual([r.coldTop[0].label, r.coldTop[0].day, r.coldTop[0].thread, r.coldTop[0].idleMs], ['an', '2026-09-29', 'Explore a1', 66 * MIN])
+  assert.deepEqual([r.coldTop[1].label, r.coldTop[1].thread, r.coldTop[1].idleMs, r.coldTop[1].extra], ['binh', 'codex main', 90 * MIN, 68400])
   assert.deepEqual([r.ttl.main.min, r.ttl.subagent.min], [60, 5])
-  assert.deepEqual(r.weeks.map(w => [w.week, w.sessions, w.cold]), [['2026-09-28', 1, 1], ['2026-10-05', 2, 0]])
+  assert.deepEqual(r.weeks.map(w => [w.week, w.sessions, w.cold]), [['2026-09-28', 1, 1], ['2026-10-05', 3, 1]])
   assert.equal(r.hooks['turn.step'].count, 30)
 })
 
 test('the markdown has a section for each part, and names no session by its own id', () => {
   const { exports } = readExports([exportsDir()])
   const md = markdown(aggregate(exports, {}))
-  for (const heading of ['# oxen-meter team report', '## By person', '## By agent type', '## By model', '## Top cold resumes', '## TTL', '## Weekly trend', '## Anti-patterns', '## Handoffs', '## Hook timing']) {
+  for (const heading of ['# oxen-meter team report', '## By person', '## By tool', '## By agent type', '## By model', '## Top cold resumes', '## TTL', '## Cache after a gap', '## Quota', '## Weekly trend', '## Anti-patterns', '## Handoffs', '## Hook timing']) {
     assert.ok(md.includes(heading), heading)
   }
-  assert.match(md, /\| an \| 2 \|/)
+  assert.match(md, /\| an \| claude \| 2 \|/)
   assert.doesNotMatch(md, /\bs1\b|agent-x/)
 })
 
-test('Codex sessions add up their last token count, in the exports\' days only', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'oxen-meter-codex-'))
-  const day = (d, lines) => {
-    mkdirSync(join(dir, '2026', '10', d), { recursive: true })
-    writeFileSync(join(dir, '2026', '10', d, `rollout-2026-10-${d}T10-00-00-x.jsonl`), lines.map(l => JSON.stringify(l)).join('\n'))
-  }
-  const count = (input, cached, output) => ({ type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, cached_input_tokens: cached, output_tokens: output } } } })
-  day('05', [{ type: 'session_meta', payload: { cwd: '/secret' } }, count(100, 50, 10), count(1000, 800, 40), { type: 'event_msg', payload: { type: 'token_count', info: null } }])
-  day('06', [count(500, 100, 5)])
-  day('20', [count(9999, 9999, 9999)])
-  assert.deepEqual(readCodex(dir, '2026-10-01', '2026-10-06'), { sessions: 2, input: 1500, cached: 900, output: 45 })
-  assert.equal(readCodex(join(dir, 'missing'), '2026-10-01', '2026-10-06'), undefined)
+test('the tools are added up apart, Codex by its gap curve, and the quota each person used by tool and window', () => {
+  const { exports } = readExports([exportsDir()])
+  const r = aggregate(exports, {})
+  assert.deepEqual(r.byTool.map(t => [t.tool, t.sessions]), [['claude', 3], ['codex', 1]])
+  assert.deepEqual(r.people.map(p => [p.label, p.tools]), [['an', ['claude']], ['binh', ['claude', 'codex']]])
+  assert.deepEqual(Object.keys(r.gaps), ['codex|gpt-6.1'])
+  assert.deepEqual(r.people.find(p => p.label === 'binh').quota, { 'codex|10080': 5 })
+  const md = markdown(r)
+  assert.match(md, /\| codex gpt-6\.1 \|/)
+  assert.match(md, /\| binh \| codex 7d \| \+5 \|/)
 })

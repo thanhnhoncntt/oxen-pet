@@ -98,6 +98,7 @@ function stubEngine(on: On, placed = true) {
   on('session.send', () => ({ isDelivered: true }) as never)
   on('classic.SessionStart', () => ({}) as never)
   on('classic.PostModelSwitch', () => ({}) as never)
+  on('session.measure', (_$, e) => ({ changed: e.changed }))
   return { open, agents, toasts, clock, store, session }
 }
 
@@ -504,4 +505,38 @@ test('a hook\'s timing counts the meter\'s own code, not the tool it waited on',
   await $.tool.call({ tool: 'Bash', command: 'codex exec "review"' } as never)
   const slowest = Number(/tool\.call[\s\S]*?max (\d+\.\d+)/.exec(await paneText($))?.[1])
   expect(slowest).toBeLessThan(40)
+})
+
+test('a rate-limit window that moves is recorded as a quota reading, once per move, and the file says it is Claude Code\'s', DATA, async ($, on) => {
+  const { clock } = stubEngine(on)
+  const fs = stubFs(on)
+  stubModel(on, [])
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await runStep($, STEP)
+  const measure = (used: number, changed: string[]) => $.session.measure({ context: { window: 200000 }, rateLimits: [{ kind: 'seven_day', percentUsed: used, resetsAt: '2026-10-10T00:00:00Z' }], changed } as never)
+  await measure(40, ['rateLimits'])
+  await measure(40, ['context'])
+  await measure(41, ['rateLimits'])
+  await $.turn.complete(TURN as never)
+  await clock.advance(15000)
+  const file = JSON.parse(fs.files.get(`/home/me/meter/sessions/${SID}.json`)!.text)
+  expect(file.tool).toBe('claude')
+  expect(file.settings.cachedWeight).toBe(0.1)
+  expect(file.records.filter((r: { k: string }) => r.k === 'quota').map((r: { used: number; windowMin: number }) => [r.windowMin, r.used])).toEqual([[10080, 40], [10080, 41]])
+})
+
+test('/meter report adds a Codex session file the CLI wrote beside Claude Code\'s own, by tool', DATA, async ($, on) => {
+  const { clock } = stubEngine(on)
+  const fs = stubFs(on)
+  stubModel(on, [])
+  const codex = { v: 1, sid: 'codex-01a10fca-84e7-7a11-84c6-7df06f2c6a83', tool: 'codex', project: 'x', startedAt: 0, savedAt: 0, version: '1.1.0', settings: {}, dropped: 0, groups: { 'main||gpt-6.1-sol': { steps: 3, in: 1000, out: 10, cr: 9000, cw: 0 } }, names: {}, timings: {}, records: [] }
+  fs.files.set(`/home/me/meter/sessions/${codex.sid}.json`, { text: JSON.stringify(codex), mtimeMs: 0 })
+  fs.dirs.add('/home/me/meter')
+  fs.dirs.add('/home/me/meter/sessions')
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await runStep($, STEP)
+  await clock.advance(1000)
+  const out = String((await $.command.run({ command: 'meter', args: 'report', ...RUN } as never)).text)
+  expect(out).toContain('Tools      claude 1 session')
+  expect(out).toContain('codex 1 session, 1.9K eq')
 })

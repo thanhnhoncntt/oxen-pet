@@ -11,6 +11,9 @@ import type { Timings } from './timing'
 
 /** The main conversation's thread; every other thread is a subagent's, by its agent id. */
 export const MAIN = 'main'
+/** The tools a session file can come from: Claude Code, where the mod records it, or Codex or Devin, imported by the CLI. */
+export const TOOLS = ['claude', 'codex', 'devin'] as const
+export type Tool = (typeof TOOLS)[number]
 export const MAX_RECORDS = 20000
 /** How many of the oldest steps go at once past MAX_RECORDS, so dropping stays rare. */
 export const DROP_CHUNK = 1000
@@ -34,6 +37,7 @@ export type StepRecord = Usage & {
   stop?: string
   noUsage?: true // no response, or one with no usage
   coldStart?: true // the meter judged the thread's cache cold before the request went
+  keepalive?: true // a request the tool sent only to keep the cache warm (Devin)
 }
 
 export type EventRecord =
@@ -45,11 +49,15 @@ export type EventRecord =
   | { k: 'main-resume'; t: number; thread: string; idleS: number; ctx: number; expired: boolean }
   | { k: 'ttl'; t: number; thread: string; ttl: '5m' | '1h'; source: 'model-switch' | 'agent-call' }
   | { k: 'send'; t: number; thread: string; to: string; risk: boolean; gapMs?: number; ctx?: number; mode: 'off' | 'warn' | 'ask'; answer?: 'resume' | 'fresh' | 'unanswered' }
+  | ({ k: 'quota'; t: number; thread: string } & QuotaReading)
 
 export type MeterRecord = StepRecord | EventRecord
 
 /** Every kind of record this version writes; a file's record of another kind is left out when it is read. */
-export const RECORD_KINDS: ReadonlySet<string> = new Set(['step', 'agent-start', 'agent-stop', 'agent-call', 'codex', 'outcome', 'compact', 'main-resume', 'ttl', 'send'])
+export const RECORD_KINDS: ReadonlySet<string> = new Set(['step', 'agent-start', 'agent-stop', 'agent-call', 'codex', 'outcome', 'compact', 'main-resume', 'ttl', 'send', 'quota'])
+
+/** How much of a rate-limit window is used, 0 to 100, as the tool reported it; the window by its length in minutes. */
+export type QuotaReading = { windowMin: number; used: number; resetsAt?: number }
 
 /** Where a thread stands after its last step. */
 export type ThreadState = { lastT0: number; lastT1: number; lastCtx: number; lastModel: string; lastMsgs: number; steps: number; agentType?: string }
@@ -208,4 +216,24 @@ export function agentCallOf(result: unknown, t0: number, t1: number, thread: str
   }
 
   return [call, { k: 'ttl', t: t1, thread: agent, ttl, source: 'agent-call' }]
+}
+
+const WINDOWS: Record<string, number> = { five_hour: 300, seven_day: 10080 }
+
+/** Claude Code's rate limits as quota readings: its 5-hour and 7-day windows; any other limit is left out. */
+export function claudeQuota(limits: readonly { kind: string; percentUsed: number; resetsAt?: string }[]): QuotaReading[] {
+  return limits.flatMap(l => {
+    const windowMin = WINDOWS[l.kind]
+    const resetsAt = l.resetsAt === undefined ? Number.NaN : Date.parse(l.resetsAt)
+    return windowMin === undefined || !Number.isFinite(l.percentUsed) ? [] : [{ windowMin, used: l.percentUsed, ...(Number.isFinite(resetsAt) ? { resetsAt } : {}) }]
+  })
+}
+
+/** The quota records for `readings` at `t`: one for each window whose reading moved since `records` last had it. */
+export function quotaRecordsOf(records: readonly MeterRecord[], t: number, thread: string, readings: readonly QuotaReading[]): EventRecord[] {
+  return readings.flatMap(q => {
+    const last = records.findLast(r => r.k === 'quota' && r.windowMin === q.windowMin)
+    const same = last?.k === 'quota' && last.used === q.used && last.resetsAt === q.resetsAt
+    return same ? [] : [{ k: 'quota' as const, t, thread, ...q }]
+  })
 }

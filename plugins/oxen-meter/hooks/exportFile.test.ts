@@ -60,3 +60,12 @@ test('an export over the size limit leaves out the records of its oldest session
   expect(back.sessions.map((s: { id: string; records?: unknown[]; recordsLeftOut?: boolean }) => [s.id, s.records?.length ?? 0, s.recordsLeftOut === true])).toEqual([['old', 0, true], ['new', RECORDS.length, false]])
   expect(back.summary).toEqual(out.summary)
 })
+
+test('an export names the tool of each session that came from Codex or Devin, and anonymizes its quota records', () => {
+  const quota: MeterRecord = { k: 'quota', t: START + 5000, thread: MAIN, windowMin: 10080, used: 40 }
+  const codex = { ...FILE('codex-01a10fca-84e7-7a11-84c6-7df06f2c6a83', START), tool: 'codex' as const, records: [...RECORDS, quota] }
+  const out = exportOf([{ file: FILE('2f6c1d0a-8e1b-4c55-9a39-0c0f6f9e6b11', START), id: 'aaaa' }, { file: codex, id: 'bbbb' }], OPTS)
+  expect(out.sessions.map(s => s.tool)).toEqual([undefined, 'codex'])
+  expect(out.sessions[1]!.records!.at(-1)).toEqual({ ...quota, t: 5000 })
+  expect(out.summary.byTool.codex!.sessions).toBe(1)
+})

@@ -1,5 +1,5 @@
-import { RECORD_KINDS, newCollector, noteAgentType, noteThread } from './record'
-import type { Collector, Group, MeterRecord } from './record'
+import { RECORD_KINDS, TOOLS, newCollector, noteAgentType, noteThread } from './record'
+import type { Collector, Group, MeterRecord, Tool } from './record'
 import { timingSummary } from './timing'
 import type { TimingSummary } from './timing'
 
@@ -21,8 +21,9 @@ export type SessionMeta = {
   startedAt: number
   savedAt: number
   version: string // the meter's version that wrote the file
-  settings: { mainTtl: string; subagentTtl: string; coldTokens: number; outputWeight: number }
+  settings: { mainTtl: string; subagentTtl: string; coldTokens: number; outputWeight: number; cachedWeight?: number }
   costUsd?: number // what the session had cost, as /cost totals it
+  tool?: Tool // the tool the session ran in; none in a file of 1.0.0, which only Claude Code wrote
 }
 
 export type SessionFile = SessionMeta & {
@@ -70,9 +71,11 @@ export function readSessionText(text: string): SessionFile | undefined {
     return undefined
   }
   const records = parsed.records.filter((r): r is MeterRecord => isObject(r) && typeof r.k === 'string' && RECORD_KINDS.has(r.k))
+  const { tool, ...rest } = parsed as SessionFile
 
   return {
-    ...(parsed as SessionFile),
+    ...rest,
+    ...((TOOLS as readonly unknown[]).includes(tool) ? { tool } : {}),
     dropped: typeof parsed.dropped === 'number' ? parsed.dropped : 0,
     names: isObject(parsed.names) ? (parsed.names as Record<string, string>) : {},
     timings: isObject(parsed.timings) ? (parsed.timings as Record<string, TimingSummary>) : {},

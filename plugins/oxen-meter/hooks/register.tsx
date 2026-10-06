@@ -6,7 +6,7 @@ import { codexCallOf, outcomeOf } from './codex'
 import { dataPathError, dataRootOf, dataTargetError, exportPath, sessionPath } from './dataPath'
 import { exportOf, exportText } from './exportFile'
 import { projectLabel, shortHash } from './project'
-import { MAIN, addEvent, addStep, agentCallOf, newCollector, stepRecordOf, threadOf } from './record'
+import { MAIN, addEvent, addStep, agentCallOf, claudeQuota, newCollector, quotaRecordsOf, stepRecordOf, threadOf } from './record'
 import type { Collector } from './record'
 import { COLORS, filesText, fmtDur, fmtTokens, paneRows, reportText, rowsText, threadLabel } from './report'
 import { RESUME_OPTIONS, coldStartText, freshReason, resolveRecipient, resumeQuestion, resumeRisk, resumeToast } from './resume'
@@ -138,6 +138,9 @@ async function sessionIdOr($: EngineInterface) {
   }
 }
 
+/** The settings a session file and an export keep, so a report of them weighs as this one did. */
+const summaryOptions = (s: Settings) => ({ mainTtl: s.mainTtl, subagentTtl: s.subagentTtl, coldTokens: s.coldTokens, outputWeight: s.outputWeight, cachedWeight: s.cachedWeight })
+
 /** Writes the session's file when the session changed, and notes when it did or why not. Never throws. */
 async function flush($: EngineInterface, m: Meter, s: Settings) {
   if (m.root === undefined || m.writing || !m.c.dirty) {
@@ -157,8 +160,7 @@ async function flush($: EngineInterface, m: Meter, s: Settings) {
     } catch {
       // The file goes without the cost.
     }
-    const settings = { mainTtl: s.mainTtl, subagentTtl: s.subagentTtl, coldTokens: s.coldTokens, outputWeight: s.outputWeight }
-    const text = sessionText(m.c, { sid: m.sid, project: m.project, startedAt: m.startedAt, savedAt: now, version: m.version, settings, ...(costUsd !== undefined ? { costUsd } : {}) })
+    const text = sessionText(m.c, { sid: m.sid, tool: 'claude', project: m.project, startedAt: m.startedAt, savedAt: now, version: m.version, settings: summaryOptions(s), ...(costUsd !== undefined ? { costUsd } : {}) })
     // Records added while the file is written mark it changed again.
     m.c.dirty = false
     await writeGuarded($, m.root, sessionPath(m.root, m.sid), text)
@@ -274,7 +276,7 @@ async function report($: EngineInterface, m: Meter, s: Settings, arg: string | u
     return `No report: ${filesText(m, 0)}`
   }
   const { files, skipped } = await readSessions($, m, s, days)
-  const sessions: SessionData[] = files.map(f => ({ sid: f.sid, startedAt: f.startedAt, records: f.records, groups: f.groups }))
+  const sessions: SessionData[] = files.map(f => ({ sid: f.sid, startedAt: f.startedAt, records: f.records, groups: f.groups, ...(f.tool !== undefined ? { tool: f.tool } : {}) }))
 
   return reportText(summarize(sessions, s), { days, skipped })
 }
@@ -290,9 +292,8 @@ async function exportTo($: EngineInterface, m: Meter, s: Settings, arg: string |
     const salt = await saltOf($)
     const sessions = await Promise.all(files.map(async file => ({ file, id: await shortHash(salt, file.sid) })))
     const day = new Date(await $.clock.now()).toISOString().slice(0, 10)
-    const settings = { mainTtl: s.mainTtl, subagentTtl: s.subagentTtl, coldTokens: s.coldTokens, outputWeight: s.outputWeight }
     const path = exportPath(m.root, day.replace(/-/g, ''), s.userLabel)
-    await writeGuarded($, m.root, path, exportText(exportOf(sessions, { label: s.userLabel, version: m.version, day, days, settings })))
+    await writeGuarded($, m.root, path, exportText(exportOf(sessions, { label: s.userLabel, version: m.version, day, days, settings: summaryOptions(s) })))
     const n = sessions.length
 
     return `Wrote ${n} session${n === 1 ? '' : 's'} of the last ${days} days to ${path}. Send that file to whoever builds the team report.`
@@ -560,6 +561,21 @@ export const register: Register = (on, options) => {
     }
 
     return result
+  })
+
+  // A rate-limit window that moved a point: a quota reading, so a report can say how much of it the session used.
+  on('session.measure', async ($, e, next) => {
+    try {
+      const t = e.changed.includes('rateLimits') ? await nowOr($) : undefined
+      if (t !== undefined) {
+        for (const r of quotaRecordsOf(m.c.records, t, MAIN, claudeQuota(e.rateLimits))) {
+          addEvent(m.c, r)
+        }
+      }
+    } catch {
+      // The measurement goes on unrecorded.
+    }
+    return next(e)
   })
 
   // A main turn's end asks for the session's file at the next tick.

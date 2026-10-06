@@ -94,6 +94,11 @@ const SUMMARY = {
     { kind: 'big-first-prefix' as const, thread: MAIN, t: 0, detail: '' },
     { kind: 'cold-resume' as const, thread: MAIN, t: 0, detail: '' },
   ],
+  byTool: { claude: { steps: 40, in: 40000, out: 2100000, cr: 120e6, cw: 9.1e6, eq: 41e6, sessions: 3 } },
+  gaps: {},
+  keepalive: { steps: 0, eq: 0 },
+  compaction: { count: 0, eq: 0 },
+  quota: {},
 }
 
 test('the report adds the sessions up: cache, token equivalent, models, agents, TTL, cold resumes, handoffs, flags', () => {
@@ -135,4 +140,30 @@ test('the files row says where the session goes, or why it does not', () => {
 test('resumes count among the handoffs', () => {
   const s = { ...SUMMARY, handoffs: [{ kind: 'resume' as const, thread: MAIN, t0: 0, bg: true, workMs: 4 * MIN }, { kind: 'resume' as const, thread: MAIN, t0: 1, bg: true }] }
   expect(reportText(s, { days: 7, skipped: 0 })).toContain('Handoffs   2 resumes (2 background), median 4m back')
+})
+
+test('a report over several tools says what each cost, how each cache held by its gap, and the quota each used', () => {
+  const bucket = (fromMin: number, toMin: number | undefined, warm: number, cold: number) => ({ fromMin, ...(toMin !== undefined ? { toMin } : {}), warm, cold })
+  const s = {
+    ...SUMMARY,
+    sessions: 5,
+    byTool: { ...SUMMARY.byTool, codex: { steps: 9, in: 0, out: 0, cr: 0, cw: 0, eq: 5e6, sessions: 2 } },
+    gaps: { 'codex|gpt-6.1': [bucket(5, 10, 15, 1), bucket(10, 30, 0, 0), bucket(30, 60, 6, 0), bucket(60, 120, 1, 3), bucket(120, 360, 0, 0), bucket(360, undefined, 0, 2)] },
+    keepalive: { steps: 64, eq: 1.2e6 },
+    compaction: { count: 3, eq: 1.47e6 },
+    quota: { 'claude|300': 3, 'claude|10080': 1, 'codex|10080': 9.25 },
+    cold: [{ t: Date.UTC(2026, 9, 4, 11, 30), thread: MAIN, role: 'main' as const, tool: 'codex' as const, model: 'gpt-6.1-sol', gapMs: 90 * MIN, cw: 150000, extra: 135000 }],
+  }
+  const lines = reportText(s, { days: 7, skipped: 0 }).split('\n')
+  expect(lines[1]).toBe('Tools      claude 3 sessions, 41M eq · codex 2 sessions, 5.0M eq')
+  expect(lines).toContain('Gaps       codex gpt-6.1: 5–10m 15/16 warm · 30–60m 6/6 · 1–2h 1/4 · 6h+ 0/2')
+  expect(lines).toContain('Keepalive  64 pings, 1.2M eq')
+  expect(lines).toContain('Compaction 3, 1.5M eq')
+  expect(lines).toContain('Quota      claude 5h +3 pts · claude 7d +1 pt · codex 7d +9.3 pts')
+  expect(lines).toContain('           2026-10-04 11:30 UTC  codex main  gpt-6.1-sol  idle 1h30m  sent again 150K  +135K eq')
+})
+
+test('a report with no Claude Code session has no TTL line', () => {
+  const s = { ...SUMMARY, byTool: { codex: { ...SUMMARY.byTool.claude } } }
+  expect(reportText(s, { days: 7, skipped: 0 })).not.toContain('TTL')
 })

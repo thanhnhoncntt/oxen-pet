@@ -1,6 +1,6 @@
 import { hitRate } from './analyze'
-import type { ColdResume, Handoff, Summary, TtlView } from './analyze'
-import { MAIN } from './record'
+import type { ColdResume, GapBucket, Handoff, Summary, TtlView } from './analyze'
+import { MAIN, TOOLS } from './record'
 import type { Collector } from './record'
 import { timingRows } from './timing'
 
@@ -187,7 +187,37 @@ const utc = (t: number) => `${new Date(t).toISOString().slice(0, 16).replace('T'
 function coldLine(r: ColdResume) {
   const who = r.role === 'main' ? (r.model === '' ? 'main (resumed)' : `main  ${shortModel(r.model)}`) : `${agentLabel(r.thread, r.agentType)}  ${shortModel(r.model)}`
 
-  return `${utc(r.t)}  ${who}  idle ${fmtDur(r.gapMs)}  wrote ${fmtTokens(r.cw)}  +${fmtTokens(r.extra)} eq`
+  return `${utc(r.t)}  ${r.tool !== undefined ? `${r.tool} ` : ''}${who}  idle ${fmtDur(r.gapMs)}  ${r.tool !== undefined ? 'sent again' : 'wrote'} ${fmtTokens(r.cw)}  +${fmtTokens(r.extra)} eq`
+}
+
+/** A gap bucket's span, in minutes up to an hour and in hours past it: `5–10m`, `30–60m`, `1–2h`, `6h+`. */
+function spanOf(b: GapBucket) {
+  if (b.toMin === undefined) {
+    return b.fromMin >= 60 ? `${b.fromMin / 60}h+` : `${b.fromMin}m+`
+  }
+
+  return b.toMin <= 60 ? `${b.fromMin}–${b.toMin}m` : `${b.fromMin / 60}–${b.toMin / 60}h`
+}
+
+/** One gap curve: each bucket with samples, as warm over all. */
+function gapLine(key: string, curve: readonly GapBucket[]) {
+  const [tool, family] = key.split('|')
+  const parts = curve.filter(b => b.warm + b.cold > 0).map((b, i) => `${spanOf(b)} ${b.warm}/${b.warm + b.cold}${i === 0 ? ' warm' : ''}`)
+
+  return `${tool} ${family}: ${parts.join(' · ')}`
+}
+
+/** A rate-limit window by its length: `5h`, `7d`, else minutes. */
+const windowName = (min: number) => (min % 1440 === 0 ? `${min / 1440}d` : min % 60 === 0 ? `${min / 60}h` : `${min}m`)
+
+function quotaText(quota: Summary['quota']) {
+  return Object.entries(quota)
+    .map(([key, points]) => {
+      const [tool, windowMin] = key.split('|')
+      const p = Math.round(points * 10) / 10
+      return `${tool} ${windowName(Number(windowMin))} +${p} pt${p === 1 ? '' : 's'}`
+    })
+    .join(' · ')
 }
 
 function handoffText(all: readonly Handoff[]) {
@@ -214,13 +244,19 @@ export function reportText(s: Summary, o: { days: number; skipped: number }): st
     return `No session in the last ${plural(o.days, 'day')}.`
   }
   const byEq = <T extends { eq: number }>(rec: Record<string, T>) => Object.entries(rec).sort((a, b) => b[1].eq - a[1].eq)
+  const tools = TOOLS.flatMap(tool => (s.byTool[tool] !== undefined ? [[tool, s.byTool[tool]] as const] : []))
   const lines = [
     `${plural(s.sessions, 'session')} in the last ${plural(o.days, 'day')}${o.skipped > 0 ? ` (${plural(o.skipped, 'emptied file')} skipped)` : ''}`,
+    ...(tools.length > 1 || (tools.length === 1 && tools[0]![0] !== 'claude') ? [`${pad('Tools')} ${tools.map(([tool, g]) => `${tool} ${plural(g.sessions, 'session')}, ${fmtTokens(g.eq)} eq`).join(' · ')}`] : []),
     `${pad('Cache')} hit ${pct(s.totals.cr, s.totals.cr + s.totals.cw + s.totals.in)}% · read ${fmtTokens(s.totals.cr)} · written ${fmtTokens(s.totals.cw)} · uncached ${fmtTokens(s.totals.in)} · output ${fmtTokens(s.totals.out)}`,
     `${pad('Token eq.')} ${eqText(s)}`,
     `${pad('Models')} ${byEq(s.byModel).map(([m, g]) => `${shortModel(m)} hit ${Math.round(hitRate(g) * 100)}%, ${fmtTokens(g.eq)} eq`).join(' · ')}`,
     `${pad('Agents')} ${byEq(s.byAgentType).map(([a, g], i) => `${a} ${fmtTokens(g.eq)}${i === 0 ? ' eq' : ''}`).join(' · ')}`,
-    `${pad('TTL')} ${ttlText(s.ttl)}`,
+    ...(s.byTool.claude !== undefined ? [`${pad('TTL')} ${ttlText(s.ttl)}`] : []),
+    ...Object.entries(s.gaps).map(([key, curve], i) => `${i === 0 ? pad('Gaps') : INDENT.slice(1)} ${gapLine(key, curve)}`),
+    ...(s.keepalive.steps > 0 ? [`${pad('Keepalive')} ${plural(s.keepalive.steps, 'ping')}, ${fmtTokens(s.keepalive.eq)} eq`] : []),
+    ...(s.compaction.count > 0 ? [`${pad('Compaction')} ${s.compaction.count}${s.compaction.eq > 0 ? `, ${fmtTokens(s.compaction.eq)} eq` : ''}`] : []),
+    ...(Object.keys(s.quota).length > 0 ? [`${pad('Quota')} ${quotaText(s.quota)}`] : []),
   ]
   if (s.cold.length > 0) {
     const written = s.cold.reduce((n, r) => n + r.cw, 0)

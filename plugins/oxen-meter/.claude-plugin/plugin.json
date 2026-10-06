@@ -82,6 +82,22 @@
       "title": "Data folder",
       "description": "An absolute path to the folder the meter writes its sessions and exports to. Empty: oxen-meter in the .claude folder the plugin is installed under.",
       "default": ""
+    },
+    "cachedWeight": {
+      "type": "number",
+      "title": "Cached input weight (Codex, Devin)",
+      "description": "What one cached input token of Codex or Devin weighs against an uncached one, as its model's price list has it. Claude's cache is priced by the meter itself.",
+      "default": 0.1,
+      "min": 0,
+      "max": 1
+    },
+    "coldAfterMin": {
+      "type": "number",
+      "title": "Cold after (minutes, Codex and Devin)",
+      "description": "How long a Codex or Devin thread may sit before the oxen-meter CLI's hooks warn that its prompt cache is likely gone. Their caches have no fixed TTL; /meter report shows how yours held.",
+      "default": 60,
+      "min": 5,
+      "max": 1440
     }
   }
 }

@@ -67,3 +67,20 @@ test('a file expires once it is older than the retention days', () => {
   expect(isExpired(0, 30 * DAY, 30)).toBe(false)
   expect(isExpired(0, 30 * DAY + 1, 30)).toBe(true)
 })
+
+test('a session file keeps the tool that wrote it; a file of 1.0.0 has none, and a tool it does not know is dropped', () => {
+  const c = collector(2)
+  expect(readSessionText(sessionText(c, { ...META, tool: 'codex' }))!.tool).toBe('codex')
+  expect(readSessionText(sessionText(c, META))!.tool).toBeUndefined()
+  const odd = JSON.parse(sessionText(c, META))
+  expect(readSessionText(JSON.stringify({ ...odd, tool: 'vim' }))!.tool).toBeUndefined()
+})
+
+test('a quota record reads back; a keepalive step keeps its mark', () => {
+  const c = collector(1)
+  addEvent(c, { k: 'quota', t: 5, thread: MAIN, windowMin: 10080, used: 12.5 })
+  addStep(c, { ...(c.records.find(r => r.k === 'step') as Extract<(typeof c.records)[number], { k: 'step' }>), t0: 9000, keepalive: true })
+  const file = readSessionText(sessionText(c, META))!
+  expect(file.records.filter(r => r.k === 'quota')).toEqual([{ k: 'quota', t: 5, thread: MAIN, windowMin: 10080, used: 12.5 }])
+  expect(file.records.filter(r => r.k === 'step' && r.keepalive).length).toBe(1)
+})

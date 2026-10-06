@@ -9,6 +9,8 @@ export type Settings = {
   outputWeight: number // one output token in uncached input tokens, for the token equivalent
   retentionDays: number // session files older than this are emptied
   dataDir: string // where sessions and exports go; empty for the .claude folder's oxen-meter
+  cachedWeight: number // one cached input token of Codex or Devin (no cache writes) in uncached input tokens
+  coldAfterMin: number // how long a Codex or Devin thread may sit before the CLI's hooks warn that its cache is likely gone
 }
 
 export type TtlSetting = 'auto' | '5m' | '1h'
@@ -17,7 +19,7 @@ const GUARDS = ['off', 'warn', 'ask'] as const
 const TTLS = ['auto', '5m', '1h'] as const
 const MAX_LABEL = 40
 
-export const DEFAULTS: Settings = { resumeGuard: 'warn', coldTokens: 50000, mainTtl: 'auto', subagentTtl: 'auto', userLabel: '', hashProject: true, outputWeight: 5, retentionDays: 30, dataDir: '' }
+export const DEFAULTS: Settings = { resumeGuard: 'warn', coldTokens: 50000, mainTtl: 'auto', subagentTtl: 'auto', userLabel: '', hashProject: true, outputWeight: 5, retentionDays: 30, dataDir: '', cachedWeight: 0.1, coldAfterMin: 60 }
 
 const oneOf = <T extends string>(values: readonly T[], v: unknown, fallback: T): T => ((values as readonly unknown[]).includes(v) ? (v as T) : fallback)
 const number = (v: unknown, min: number, max: number, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : fallback)
@@ -37,5 +39,7 @@ export function readSettings(options: Readonly<Record<string, unknown>>): Settin
     outputWeight: number(options.outputWeight, 0, 100, DEFAULTS.outputWeight),
     retentionDays: Math.round(number(options.retentionDays, 1, 3650, DEFAULTS.retentionDays)),
     dataDir: typeof options.dataDir === 'string' ? options.dataDir.trim() : DEFAULTS.dataDir,
+    cachedWeight: number(options.cachedWeight, 0, 1, DEFAULTS.cachedWeight),
+    coldAfterMin: number(options.coldAfterMin, 5, 1440, DEFAULTS.coldAfterMin),
   }
 }

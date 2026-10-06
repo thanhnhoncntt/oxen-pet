@@ -1,11 +1,16 @@
+import { familyOf, weightsOf } from './provider'
 import { MAIN } from './record'
-import type { Group, MeterRecord, StepRecord, Usage } from './record'
+import type { Group, MeterRecord, StepRecord, Tool, Usage } from './record'
 import type { TtlSetting } from './settings'
 
 /**
  * What the records say, as pure functions: the hit rate, the token equivalent, each step's cache judged warm or cold,
- * the TTL of each role, the cold resumes, the handoffs and the anti-patterns. `register.tsx`, `/meter report` and
- * `tools/meter/aggregate.mjs` all read the records through here.
+ * the TTL of each role, the gap curve, the cold resumes, the handoffs, the anti-patterns and the quota used.
+ * `register.tsx`, `/meter report`, the CLI and `tools/meter/aggregate.mjs` all read the records through here.
+ *
+ * Sessions come from three tools. Claude Code's (the mod's own) have a TTL of 5m or 1h per role. Codex and Devin
+ * (imported by the CLI) have none the meter can rely on: Codex's cache fades over hours, Devin's server sets it and
+ * Devin pings to keep it. Their caches are read as a gap curve instead.
  */
 
 export type Role = 'main' | 'subagent'
@@ -18,6 +23,13 @@ const PAST_5M_MS = 5.5 * MIN
 const HOUR_MS = 60 * MIN
 const WARM_SHARE = 0.5 // a step read at least this share of the context before it: its cache was warm
 const MIN_CONTEXT = 2000 // a context smaller than this judges nothing
+const DEFAULT_CACHED_WEIGHT = 0.1
+/** Where the gap curve's buckets start, in minutes; the last has no end. */
+export const GAP_EDGES_MIN = [5, 10, 30, 60, 120, 360] as const
+/** Two quota readings further apart than this may hold someone else's use between them: their move is not counted. */
+const QUOTA_SPAN_MS = 60 * MIN
+/** A window whose reset moved later by more than this has started over. */
+const QUOTA_RESET_MS = 60 * MIN
 
 /** What one token written to the cache weighs against an uncached one, for a cache of `ttlMin`. */
 export const writeWeight = (ttlMin: number) => (ttlMin >= 60 ? 2 : 1.25)
@@ -29,18 +41,20 @@ export function hitRate(u: Usage) {
   return whole > 0 ? u.cr / whole : 0
 }
 
-/** The steps' cost in uncached input tokens: writes weigh `w`, reads 0.1, output `outputWeight`. */
-export const tokenEquivalent = (u: Usage, w: number, outputWeight: number) => u.in + u.cw * w + u.cr * READ_WEIGHT + u.out * outputWeight
+/** The steps' cost in uncached input tokens: writes weigh `w`, reads `rw` (0.1 unless given), output `outputWeight`. */
+export const tokenEquivalent = (u: Usage, w: number, outputWeight: number, rw = READ_WEIGHT) => u.in + u.cw * w + u.cr * rw + u.out * outputWeight
 
 const isStep = (r: MeterRecord): r is StepRecord => r.k === 'step'
 
 /** A step judged against the step before it in its thread: whether it read the cache that step left. */
-export type Sample = { thread: string; role: Role; t0: number; gapMs: number; warm: boolean; cr: number; cw: number; prevCtx: number }
+export type Sample = { thread: string; role: Role; t0: number; gapMs: number; warm: boolean; cr: number; cw: number; prevCtx: number; model: string }
 
 /**
  * Each step with the step before it in its thread, as the cache judges it: warm when it read at least half of that
- * step's context, cold when it wrote at least half of it again. Left out, as no evidence of the TTL: a step after a
- * compaction, a model change or a rewind (fewer messages), after a context too small, or with no usage.
+ * step's context, cold when it wrote or sent uncached at least half of it again (a provider that writes nothing to
+ * the cache sends it uncached). Left out, as no evidence of the TTL: a step after a compaction, a model change or a
+ * rewind (fewer messages), after a context too small, or with no usage; and a keepalive, which reads the cache by
+ * design, though the step after it is judged against it.
  */
 export function cacheSamples(records: readonly MeterRecord[]): Sample[] {
   const compactions = records.filter(r => r.k === 'compact')
@@ -49,15 +63,15 @@ export function cacheSamples(records: readonly MeterRecord[]): Sample[] {
   for (const s of records.filter(isStep)) {
     const prev = last[s.thread]
     last[s.thread] = s
-    if (!prev || s.noUsage || prev.noUsage || prev.ctx < MIN_CONTEXT || s.model !== prev.model || s.msgs < prev.msgs) {
+    if (!prev || s.keepalive || s.noUsage || prev.noUsage || prev.ctx < MIN_CONTEXT || s.model !== prev.model || s.msgs < prev.msgs) {
       continue
     }
     if (compactions.some(c => c.thread === s.thread && c.t1 >= prev.t0 && c.t0 <= s.t0)) {
       continue
     }
     const warm = s.cr >= WARM_SHARE * prev.ctx
-    if (warm || s.cw >= WARM_SHARE * prev.ctx) {
-      samples.push({ thread: s.thread, role: roleOf(s.thread), t0: s.t0, gapMs: s.t0 - prev.t0, warm, cr: s.cr, cw: s.cw, prevCtx: prev.ctx })
+    if (warm || s.in + s.cw >= WARM_SHARE * prev.ctx) {
+      samples.push({ thread: s.thread, role: roleOf(s.thread), t0: s.t0, gapMs: s.t0 - prev.t0, warm, cr: s.cr, cw: s.cw, prevCtx: prev.ctx, model: s.model })
     }
   }
 
@@ -111,25 +125,42 @@ export function inferTtl(samples: readonly Sample[], records: readonly MeterReco
   return { ...view, min: role === 'main' ? 60 : 5, source: 'default' }
 }
 
-/** A cold resume: a step that wrote its whole context again after its cache's TTL, or a main session resumed so. */
-export type ColdResume = { t: number; thread: string; role: Role; agentType?: string; model: string; gapMs: number; cw: number; extra: number }
+/**
+ * A cold resume: a step that wrote its whole context again after its cache's TTL, or a main session resumed so.
+ * `cw` is what went to the model again: written for Claude Code, written or sent uncached for another tool, which
+ * `tool` names (none for Claude Code).
+ */
+export type ColdResume = { t: number; thread: string; role: Role; tool?: Tool; agentType?: string; model: string; gapMs: number; cw: number; extra: number }
+
+/** How a session's steps are weighed and judged: its tool (Claude Code when none) and the Cached input weight. */
+export type ToolOptions = { tool?: Tool; cachedWeight?: number }
 
 /**
  * The cold resumes: a step whose gap passed its role's TTL, that wrote at least `coldTokens` and did not read the
  * context before it back; and a main session resumed after its cache likely expired, with that much context.
- * `extra` is what the write cost beyond reading it, in token equivalents. The exclusions of `cacheSamples` apply.
+ * Another tool has no TTL: its cold resume is a cold step five minutes or more after the one before, that sent at
+ * least `coldTokens` again. `extra` is what that cost beyond reading it, in token equivalents. The exclusions of
+ * `cacheSamples` apply.
  */
-export function coldResumes(records: readonly MeterRecord[], ttlMin: Record<Role, number>, coldTokens: number): ColdResume[] {
+export function coldResumes(records: readonly MeterRecord[], ttlMin: Record<Role, number>, coldTokens: number, o: ToolOptions = {}): ColdResume[] {
   const judged = new Map(cacheSamples(records).map(s => [`${s.thread}@${s.t0}`, s]))
   const found: ColdResume[] = []
+  const tool = o.tool ?? 'claude'
   for (const r of records) {
-    if (r.k === 'step') {
+    if (r.k === 'step' && tool !== 'claude') {
+      const s = judged.get(`${r.thread}@${r.t0}`)
+      const again = r.in + r.cw
+      if (s && !s.warm && s.gapMs >= GAP_EDGES_MIN[0] * MIN && again >= coldTokens) {
+        const { w, rw } = weightsOf(tool, r.model, 0, o.cachedWeight ?? DEFAULT_CACHED_WEIGHT)
+        found.push({ t: r.t0, thread: r.thread, role: s.role, tool, ...(r.agentType !== undefined ? { agentType: r.agentType } : {}), model: r.model, gapMs: s.gapMs, cw: again, extra: Math.round(r.in * (1 - rw) + r.cw * (w - rw)) })
+      }
+    } else if (r.k === 'step') {
       const s = judged.get(`${r.thread}@${r.t0}`)
       const ttl = ttlMin[roleOf(r.thread)]
       if (s && !s.warm && s.gapMs > ttl * MIN && r.cw >= coldTokens) {
         found.push({ t: r.t0, thread: r.thread, role: s.role, ...(r.agentType !== undefined ? { agentType: r.agentType } : {}), model: r.model, gapMs: s.gapMs, cw: r.cw, extra: Math.round(r.cw * (writeWeight(ttl) - READ_WEIGHT)) })
       }
-    } else if (r.k === 'main-resume' && r.expired && r.ctx >= coldTokens) {
+    } else if (r.k === 'main-resume' && tool === 'claude' && r.expired && r.ctx >= coldTokens) {
       found.push({ t: r.t, thread: MAIN, role: 'main', model: '', gapMs: r.idleS * 1000, cw: r.ctx, extra: Math.round(r.ctx * (writeWeight(ttlMin.main) - READ_WEIGHT)) })
     }
   }
@@ -230,12 +261,56 @@ export function flagsOf(records: readonly MeterRecord[], cold: readonly ColdResu
   return flags.sort((a, b) => a.t - b.t || a.thread.localeCompare(b.thread) || a.kind.localeCompare(b.kind))
 }
 
-/** One session as the summary reads it: its records, and its exact totals by role, agent type and model. */
-export type SessionData = { sid: string; startedAt: number; records: readonly MeterRecord[]; groups: Readonly<Record<string, Group>> }
+/** One bucket of the gap curve: the warm and cold samples whose gap was from `fromMin` to `toMin` minutes. */
+export type GapBucket = { fromMin: number; toMin?: number; warm: number; cold: number }
+
+/** How often the cache held by how long it sat: the samples of five minutes or more, by bucket. */
+export function gapCurve(samples: readonly Sample[]): GapBucket[] {
+  const buckets: GapBucket[] = GAP_EDGES_MIN.map((fromMin, i) => {
+    const toMin = GAP_EDGES_MIN[i + 1]
+    return { fromMin, ...(toMin !== undefined ? { toMin } : {}), warm: 0, cold: 0 }
+  })
+  for (const s of samples) {
+    const bucket = buckets.findLast(b => s.gapMs >= b.fromMin * MIN)
+    if (bucket) {
+      bucket[s.warm ? 'warm' : 'cold'] += 1
+    }
+  }
+
+  return buckets
+}
+
+/**
+ * How many points of each rate-limit window, by its length in minutes, moved while the records' sessions ran: each rise
+ * between two readings of a window at most an hour apart; after a reset, the reading itself. The windows are the
+ * account's, so the sessions given should be one person's, of one tool.
+ */
+export function quotaUsed(records: readonly MeterRecord[]): Record<number, number> {
+  const last = new Map<number, { t: number; used: number; resetsAt?: number }>()
+  const used: Record<number, number> = {}
+  for (const r of [...records].sort((a, b) => ('t' in a ? a.t : a.t0) - ('t' in b ? b.t : b.t0))) {
+    if (r.k !== 'quota') {
+      continue
+    }
+    const prev = last.get(r.windowMin)
+    last.set(r.windowMin, r)
+    const sum = used[r.windowMin] ?? 0
+    const reset = prev !== undefined && (r.used < prev.used || (r.resetsAt !== undefined && prev.resetsAt !== undefined && r.resetsAt - prev.resetsAt > QUOTA_RESET_MS))
+    used[r.windowMin] = prev === undefined || r.t - prev.t > QUOTA_SPAN_MS ? sum : sum + (reset ? r.used : r.used - prev.used)
+  }
+
+  return used
+}
+
+/** One session as the summary reads it: its records, its exact totals by role, agent type and model, and its tool. */
+export type SessionData = { sid: string; startedAt: number; records: readonly MeterRecord[]; groups: Readonly<Record<string, Group>>; tool?: Tool }
 
 export type Totals = Usage & { steps: number }
 export type Weighed = Totals & { eq: number }
-export type SummaryOptions = { mainTtl: TtlSetting; subagentTtl: TtlSetting; coldTokens: number; outputWeight: number }
+export type SummaryOptions = { mainTtl: TtlSetting; subagentTtl: TtlSetting; coldTokens: number; outputWeight: number; cachedWeight?: number }
+
+/** The agent type of the totals of another tool's compactions, which are requests of their own. */
+export const COMPACTION = 'compaction'
 
 export type Summary = {
   sessions: number
@@ -244,10 +319,15 @@ export type Summary = {
   byRole: Record<Role, Weighed>
   byModel: Record<string, Weighed>
   byAgentType: Record<string, Weighed>
+  byTool: Partial<Record<Tool, Weighed & { sessions: number }>>
   ttl: Record<Role, TtlView>
+  gaps: Record<string, GapBucket[]> // by `tool|family`, for the tools with no TTL; only the curves with a sample
   cold: ColdResume[]
   handoffs: Handoff[]
   flags: Flag[]
+  keepalive: { steps: number; eq: number }
+  compaction: { count: number; eq: number }
+  quota: Record<string, number> // points used, by `tool|window minutes`
 }
 
 const zero = (): Weighed => ({ steps: 0, in: 0, out: 0, cr: 0, cw: 0, eq: 0 })
@@ -268,40 +348,80 @@ export function ttlOf(records: readonly MeterRecord[], o: Pick<SummaryOptions, '
   return { main: inferTtl(samples, records, 'main', o.mainTtl), subagent: inferTtl(samples, records, 'subagent', o.subagentTtl) }
 }
 
+const toolOf = (s: SessionData): Tool => s.tool ?? 'claude'
+
 /**
  * What a set of sessions adds up to: exact totals from their groups, the rest from their records. Each session's
- * steps are judged on their own, so one session's last step never pairs with the next one's first.
+ * steps are judged on their own, so one session's last step never pairs with the next one's first. Claude Code's
+ * TTLs come from Claude Code's sessions alone; the other tools' samples make the gap curves.
  */
 export function summarize(sessions: readonly SessionData[], o: SummaryOptions): Summary {
-  const records = sessions.flatMap(s => s.records)
-  const samples = sessions.flatMap(s => cacheSamples(s.records))
+  const cachedWeight = o.cachedWeight ?? DEFAULT_CACHED_WEIGHT
+  const claude = sessions.filter(s => toolOf(s) === 'claude')
+  const records = claude.flatMap(s => s.records)
+  const samples = claude.flatMap(s => cacheSamples(s.records))
   const ttl = { main: inferTtl(samples, records, 'main', o.mainTtl), subagent: inferTtl(samples, records, 'subagent', o.subagentTtl) }
   const ttlMin = { main: ttl.main.min, subagent: ttl.subagent.min }
   const totals = { steps: 0, in: 0, out: 0, cr: 0, cw: 0 }
   const byRole = { main: zero(), subagent: zero() }
   const byModel: Record<string, Weighed> = {}
   const byAgentType: Record<string, Weighed> = {}
+  const byTool: Summary['byTool'] = {}
+  const compaction = { count: 0, eq: 0 }
+  const keepalive = { steps: 0, eq: 0 }
   for (const s of sessions) {
+    const tool = toolOf(s)
+    const own = (byTool[tool] ??= { ...zero(), sessions: 0 })
+    own.sessions += 1
     for (const [key, g] of Object.entries(s.groups)) {
       const [roleName, agentType = '', model = ''] = key.split('|')
       const role: Role = roleName === 'main' ? 'main' : 'subagent'
-      const eq = tokenEquivalent(g, writeWeight(ttlMin[role]), o.outputWeight)
+      const { w, rw } = weightsOf(tool, model, ttlMin[role], cachedWeight)
+      const eq = tokenEquivalent(g, w, o.outputWeight, rw)
       totals.steps += g.steps
       totals.in += g.in
       totals.out += g.out
       totals.cr += g.cr
       totals.cw += g.cw
       addTo(byRole[role], g, eq)
+      addTo(own, g, eq)
       addTo((byModel[model] ??= zero()), g, eq)
-      addTo((byAgentType[role === 'main' ? 'main' : agentType || 'subagent'] ??= zero()), g, eq)
+      addTo((byAgentType[agentType === COMPACTION ? COMPACTION : role === 'main' ? 'main' : agentType || 'subagent'] ??= zero()), g, eq)
+      compaction.eq += agentType === COMPACTION ? eq : 0
+    }
+    for (const r of s.records) {
+      if (r.k === 'compact') {
+        compaction.count += 1
+      } else if (r.k === 'step' && r.keepalive) {
+        const { w, rw } = weightsOf(tool, r.model, ttlMin[roleOf(r.thread)], cachedWeight)
+        keepalive.steps += 1
+        keepalive.eq += tokenEquivalent(r, w, o.outputWeight, rw)
+      }
     }
   }
   const cold: ColdResume[] = []
   const flags: Flag[] = []
+  const gapSamples: Record<string, Sample[]> = {}
   for (const s of sessions) {
-    const own = coldResumes(s.records, ttlMin, o.coldTokens)
+    const own = coldResumes(s.records, ttlMin, o.coldTokens, { tool: toolOf(s), cachedWeight })
     cold.push(...own)
     flags.push(...flagsOf(s.records, own))
+    if (toolOf(s) !== 'claude') {
+      for (const sample of cacheSamples(s.records)) {
+        ;(gapSamples[`${toolOf(s)}|${familyOf(sample.model)}`] ??= []).push(sample)
+      }
+    }
+  }
+  const gaps = Object.fromEntries(
+    Object.entries(gapSamples)
+      .map(([key, own]) => [key, gapCurve(own)] as const)
+      .filter(([, curve]) => curve.some(b => b.warm + b.cold > 0)),
+  )
+  const quota: Record<string, number> = {}
+  for (const tool of Object.keys(byTool) as Tool[]) {
+    for (const [windowMin, points] of Object.entries(quotaUsed(sessions.filter(s => toolOf(s) === tool).flatMap(s => s.records)))) {
+      quota[`${tool}|${windowMin}`] = points
+    }
   }
 
   return {
@@ -311,9 +431,14 @@ export function summarize(sessions: readonly SessionData[], o: SummaryOptions): 
     byRole,
     byModel,
     byAgentType,
+    byTool,
     ttl,
+    gaps,
     cold,
     handoffs: sessions.flatMap(s => handoffsOf(s.records)),
     flags,
+    keepalive,
+    compaction,
+    quota,
   }
 }
