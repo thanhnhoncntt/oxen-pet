@@ -328,13 +328,17 @@ export const register: Register = (on, options) => {
       // Without the command the meter still records; only the pane and the report are missing.
     }
     $.clock.every(TICK_MS, async () => {
-      if (m.paneOpen) {
-        $.ui.invalidate('ui.render')
-      }
-      refreshTtl()
-      const now = (await nowOr($)) ?? 0
-      if (m.c.dirty && (m.turnEnded || now - m.triedAt >= FLUSH_MS)) {
-        await flush($, m, settings)
+      try {
+        if (m.paneOpen) {
+          $.ui.invalidate('ui.render')
+        }
+        refreshTtl()
+        const now = (await nowOr($)) ?? 0
+        if (m.c.dirty && (m.turnEnded || now - m.triedAt >= FLUSH_MS)) {
+          await flush($, m, settings)
+        }
+      } catch {
+        // The next tick tries again; a failing tick never ends the timer.
       }
     })
 
@@ -384,7 +388,7 @@ export const register: Register = (on, options) => {
 
   // A Bash call: a Codex handoff or an outcome, by the command's text, which is never kept.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const mark = performance.now()
+    let mark = performance.now()
     let codex: ReturnType<typeof codexCallOf>
     let outcome: ReturnType<typeof outcomeOf>
     try {
@@ -398,7 +402,10 @@ export const register: Register = (on, options) => {
       return next(e)
     }
     const t0 = await nowOr($)
+    // The meter's own time, before the command and after it, never the command's.
+    const own = performance.now() - mark
     const result = await next(e)
+    mark = performance.now() - own
     const t1 = await nowOr($)
     try {
       const thread = threadOf(e.agentId)

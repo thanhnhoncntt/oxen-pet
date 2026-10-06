@@ -488,3 +488,20 @@ test('a command\'s output leaves the plugin\'s name to Claude Code, which shows 
     expect(String((await $.command.run({ command: 'meter', args, ...RUN } as never)).text)).not.toMatch(/^oxen-meter:/)
   }
 })
+
+test('a hook\'s timing counts the meter\'s own code, not the tool it waited on', async ($, on) => {
+  stubEngine(on)
+  stubModel(on, [])
+  on('tool.call', { tool: 'Bash' }, () => {
+    const until = performance.now() + 80
+    while (performance.now() < until) {
+      // A Codex run that takes a while.
+    }
+    return { result: { stdout: '', stderr: '', interrupted: false } } as never
+  })
+  await $.session.start({ cwd: '/home/me/src/app', surface: 'terminal', isInteractive: true })
+  await runStep($, STEP)
+  await $.tool.call({ tool: 'Bash', command: 'codex exec "review"' } as never)
+  const slowest = Number(/tool\.call[\s\S]*?max (\d+\.\d+)/.exec(await paneText($))?.[1])
+  expect(slowest).toBeLessThan(40)
+})
