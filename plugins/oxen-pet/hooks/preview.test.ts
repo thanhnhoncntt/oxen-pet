@@ -9,7 +9,7 @@ const body = read.errors ? undefined : animate(read.theme)
 
 test('the preview shows every mode with when it plays, every face, and every clip', () => {
   const page = previewPage(body!, [])
-  for (const part of ['A turn starts', 'A tool call fails', 'A tool call ends', '16 frames at 8 fps', '18 frames at 10 fps']) {
+  for (const part of ['A turn starts', 'A tool call fails', 'A tool call ends', 'A destructive command waits for your answer', '<h2>Boss</h2>', 'the next passing run defeats it', '16 frames at 8 fps', '18 frames at 10 fps']) {
     expect(page).toContain(part)
   }
   for (const face of FACES) {

@@ -125,6 +125,28 @@
         "..a...c..",
         ".aaa....."
       ]
+    ],
+    "guard": [
+      [
+        "..cccc..",
+        ".c....c.",
+        "c..yy..c",
+        "c.yyyy.c",
+        "c..yy..c",
+        "c......c",
+        ".c....c.",
+        "..cccc.."
+      ],
+      [
+        "..kkkk..",
+        ".k....k.",
+        "k..yy..k",
+        "k.yyyy.k",
+        "k..yy..k",
+        "k......k",
+        ".k....k.",
+        "..kkkk.."
+      ]
     ]
   },
   "lines": {
@@ -166,13 +188,18 @@
     ],
     "error": [
       "houston, we have a problem"
+    ],
+    "guard": [
+      "raising the force field",
+      "earthling, are you sure?"
     ]
   },
   "lineColors": {
     "idle": "#3fb43f",
     "run": "#3fb43f",
     "jump": "#3fb43f",
-    "agent": "#3fb43f"
+    "agent": "#3fb43f",
+    "guard": "#d9822b"
   },
   "hud": {
     "frame": "#3fb43f",

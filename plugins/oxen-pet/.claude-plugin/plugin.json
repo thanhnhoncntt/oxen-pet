@@ -1,7 +1,7 @@
 {
   "name": "oxen-pet",
-  "version": "1.0.2",
-  "description": "A pixel pet above the Claude Code prompt that acts out each tool call, plus an HP/MP/ST HUD for context, rate limits, and prompt cache. Hardened fork of pixel-pet.",
+  "version": "1.1.0",
+  "description": "A pixel pet above the Claude Code prompt that acts out each tool call, an HP/MP/ST HUD for context, rate limits, and prompt cache, a shield that asks before destructive commands, a bug boss for failing tests, and a /pet stats pane. Hardened fork of pixel-pet.",
   "author": {
     "name": "NhonNguyen"
   },
@@ -17,7 +17,11 @@
     "rate-limit",
     "usage",
     "context-window",
-    "prompt-cache"
+    "prompt-cache",
+    "guard",
+    "safety",
+    "bypass-permissions",
+    "tests"
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
@@ -73,6 +77,18 @@
       "type": "boolean",
       "title": "Subagent minis",
       "description": "A mini behind the pet for each running subagent.",
+      "default": true
+    },
+    "guard": {
+      "type": "boolean",
+      "title": "Shield",
+      "description": "Ask before a destructive Bash command (rm -r, git push --force, git reset --hard, DROP TABLE, ...) runs unasked, in bypass or auto mode or by an allow rule. With no one to answer, it is blocked.",
+      "default": true
+    },
+    "boss": {
+      "type": "boolean",
+      "title": "Bug boss",
+      "description": "A failed test run brings a bug boss into the band; the next passing run defeats it.",
       "default": true
     }
   }

@@ -205,3 +205,14 @@ test('a scene with nothing to draw is left out, with a note', () => {
   expect(themeOf({ ...slime, scene: { ground: ['a'] } }).scene).toEqual({ ground: ['a'], obstacles: [], decor: [], every: 40 })
   expect(themeOf({ ...slime, scene: { sky: ['.a.', 'aaa'] } }).scene).toEqual({ sky: ['.a.', 'aaa'], obstacles: [], decor: [], every: 40 })
 })
+
+test('a theme sets the guard mode\'s prop, lines, and line color like any other mode\'s', () => {
+  const read = readTheme({ name: 'g', sprite: ['ddd', 'ddd'], palette: { d: '#3d84f0' }, props: { guard: [['d.d', '.d.']] }, lines: { guard: 'not that one!' }, lineColors: { guard: '#d9822b' } })
+  if (read.errors) {
+    throw new Error(read.errors.join('\n'))
+  }
+  expect(read.notes).toEqual([])
+  expect(read.theme.props.guard).toEqual([['d.d', '.d.']])
+  expect(read.theme.lines.guard).toEqual(['not that one!'])
+  expect(read.theme.lineColors.guard).toBe('#d9822b')
+})

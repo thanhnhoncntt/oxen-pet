@@ -2,7 +2,8 @@ import type { Anim, Mode } from '../types'
 import { TICK_MS, leapClipMs, step } from './anim'
 import { HUD_WINDOW_W, frameColor, hudRows, windowEdges } from './hud'
 import type { Hud } from './hud'
-import { BODY_W, FACES, HEIGHT, MODES, compose, composeFace } from './pixels'
+import { BOSS_W, DEFEAT_MS, drawBoss } from './boss'
+import { BODY_W, FACES, HEIGHT, MODES, canvas, compose, composeFace, overlay } from './pixels'
 import type { Body, Canvas, Clip } from './pixels'
 import { GROUND_H, drawBand, layScene, obstacleSpans } from './scene'
 import { LINES, lineColor } from './status'
@@ -25,12 +26,14 @@ const WHEN: Record<Mode, string> = {
   guard: 'A destructive command waits for your answer',
 }
 // What the status line names in each mode, for the lines that name something.
-const SAMPLE_TARGET: Partial<Record<Mode, string>> = { read: 'app.ts', search: 'useState', edit: 'app.ts', bash: 'npm test', web: 'docs.anthropic.com' }
+const SAMPLE_TARGET: Partial<Record<Mode, string>> = { read: 'app.ts', search: 'useState', edit: 'app.ts', bash: 'npm test', web: 'docs.anthropic.com', guard: 'rm -rf build' }
 const SAMPLE_HUDS: [string, Hud][] = [
   ['Early in a session', { hp: 86, cacheMin: 52, mp: 72, mpResetsInMin: 213, st: 64, stResetsInMin: 4560 }],
-  ['Running low', { hp: 22, cacheMin: 0, mp: 12, mpResetsInMin: 41, st: 9, stResetsInMin: 1500 }],
+  ['Running low', { hp: 18, cacheMin: 0, mp: 12, mpResetsInMin: 41, st: 9, stResetsInMin: 1500 }],
   ['Burning fast', { hp: 70, cacheMin: 4, mp: 40, mpResetsInMin: 180, st: 20, stResetsInMin: 5040 }],
 ]
+const BOSS_GAP = 12 // columns between the pet and the boss in the boss tile
+const BOSS_BEATEN_AT = 2600
 const MOTION_FPS = 10
 const SCENE_W = 96 // columns of the sample band
 const SCENE_MS = 12000
@@ -46,7 +49,7 @@ type Tile = { label: string; note: string; w: number; h: number; fps: number; fr
 
 /**
  * The preview: a self-contained HTML page with every motion, face, and frame the mod makes for `body`. It shows each mode in
- * motion with when it plays, the pet running through its scene when it has one, each face, each mode's status lines,
+ * motion with when it plays, the pet running through its scene when it has one, the boss fight, each face, each mode's status lines,
  * the HUD in two sample states, and each clip's frames before eyes go on. A button switches to a light
  * terminal's background. `notes` are readTheme's.
  */
@@ -105,6 +108,17 @@ export function previewPage(body: Body, notes: string[]): string {
     }
     scenes.push({ label: 'run', note: 'Between tool calls, leaping each obstacle on the way', w: SCENE_W, h: HEIGHT + GROUND_H, fps: 1000 / TICK_MS, frames: shots })
   }
+  // A test run fails and brings the boss; the next run passes and defeats it, and the pet cheers.
+  const bossShots: string[] = []
+  const BOSS_FIGHT_W = BODY_W + BOSS_GAP + BOSS_W
+  for (let t = 0; t < BOSS_BEATEN_AT + DEFEAT_MS; t += TICK_MS) {
+    const isBeaten = t >= BOSS_BEATEN_AT
+    const c = canvas(BOSS_FIGHT_W, HEIGHT)
+    overlay(c, isBeaten ? compose(body, 'cheer', t - BOSS_BEATEN_AT, 1) : compose(body, t < MODES.error.once! ? 'error' : 'idle', t, 1), 0)
+    overlay(c, drawBoss(isBeaten ? { since: 0, hits: 2, defeatedAt: BOSS_BEATEN_AT } : { since: 0, hits: t < 1200 ? 1 : 2 }, t), BODY_W + BOSS_GAP)
+    bossShots.push(encode(c))
+  }
+  const bossFight: Tile[] = [{ label: 'boss', note: 'Failed test runs bring a bug; the next passing run defeats it', w: BOSS_FIGHT_W, h: HEIGHT, fps: 1000 / TICK_MS, frames: bossShots }]
   const palette = colors.map(c => `#${c.toString(16).padStart(6, '0')}`)
   const name = escapeHtml(body.name)
   const tiles = (list: Tile[], kind: string) =>
@@ -166,6 +180,8 @@ ${noteList}
 <h2>Motions</h2>
 <div class="grid">${tiles(motions, 'motion')}</div>
 ${scenes.length > 0 ? `<h2>Scene</h2>\n<div class="stack">${tiles(scenes, 'scene').replace('<figure>', '<figure class="wide">')}</div>` : ''}
+<h2>Boss</h2>
+<div class="grid">${tiles(bossFight, 'boss')}</div>
 <h2>Faces</h2>
 <div class="grid">${tiles(faces, 'face')}</div>
 <h2>Status lines</h2>
@@ -179,7 +195,7 @@ ${scenes.length > 0 ? `<h2>Scene</h2>\n<div class="stack">${tiles(scenes, 'scene
 <script>
 const PALETTE = ${JSON.stringify(palette)}
 const CODES = ${JSON.stringify(CODES.slice(0, palette.length).join(''))}
-const TILES = { motion: ${JSON.stringify(motions)}, scene: ${JSON.stringify(scenes)}, face: ${JSON.stringify(faces)}, clip: ${JSON.stringify(clips)} }
+const TILES = { motion: ${JSON.stringify(motions)}, scene: ${JSON.stringify(scenes)}, boss: ${JSON.stringify(bossFight)}, face: ${JSON.stringify(faces)}, clip: ${JSON.stringify(clips)} }
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches
 const canvases = [...document.querySelectorAll('canvas[data-kind]')].map(c => ({ ctx: c.getContext('2d'), tile: TILES[c.dataset.kind][c.dataset.i] }))
 function draw(ctx, tile, frame) {
